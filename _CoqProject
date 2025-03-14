@@ -1,2 +1,9 @@
 -R _build/default/theories RocqCandy
 -I _build/install/default/lib
+
+theories/Tactics.v
+theories/ResultT.v
+theories/EqClass.v
+theories/Stringifiable.v
+theories/Maps.g
+theories/All.v
