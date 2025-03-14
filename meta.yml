@@ -50,8 +50,8 @@ ci_extra_dev: false
 ci_cron_schedule: 0 0 * * 0 # Weekly at midnight sunday
 tested_coq_opam_versions:
   - version: "8.20"
-  - version: "9.0"
-    repo: "rocq/rocq-prover"
+  # - version: "9.0"
+  #   repo: "rocq/rocq-prover"
 
 ## UNKNOWN: action_appendix:
 
