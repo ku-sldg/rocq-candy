@@ -1,6 +1,7 @@
-Require Export String ResultT.
+From Coq Require Export String.
 Open Scope string_scope.
-Require Import Tactics.
+From RocqCandy Require Export ResultT.
+From RocqCandy Require Import Tactics.
 Import ResultNotation.
 
 Class Stringifiable (A : Type) :=

@@ -5,7 +5,8 @@ Authors:  Adam Petz, ampetz@ku.edu
           Will Thomas, 30wthomas@ku.edu
  *)
 
-Require Import Setoid String Tactics.
+From Coq Require Import Setoid String.
+From RocqCandy Require Import Tactics.
 Require Import List.
 
 Class EqClass (A : Type) := { 

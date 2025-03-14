@@ -6,9 +6,9 @@ Authors:  Adam Petz, ampetz@ku.edu
           Will Thomas, 30wthomas@ku.edu
  *)
 
-Require Import String List.
+From Coq Require Import String List.
 
-Require Import EqClass Tactics.
+From RocqCandy Require Import EqClass Tactics.
 Import ListNotations.
 Open Scope list_scope.
 
