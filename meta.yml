@@ -2,7 +2,7 @@
 # This file is used to configure the project metadata
 fullname: rocq-candy
 # NOTE: The "shortname" is also the presumed name of the REPOSITORY this lives in!!!
-shortname: rocq-candy # NOTE: This is the library name that other projects will use to depend on/import from this project
+shortname: RocqCandy # NOTE: This is the library name that other projects will use to depend on/import from this project
 opam_name: rocq-candy # i.e. coq-Base64
 synopsis: "Snippets of nice and useful (maybe even yummy) Rocq code"
 description: "<Project Description>"

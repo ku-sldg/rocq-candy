@@ -2,7 +2,7 @@
 ; Follow the instructions on https://github.com/coq-community/templates to regenerate.
 
 (coq.theory
- (name rocq-candy)
+ (name RocqCandy)
  (package rocq-candy)
  
  (synopsis "Snippets of nice and useful (maybe even yummy) Rocq code"))

@@ -5,9 +5,9 @@ opam-version: "2.0"
 maintainer: "30wthomas@ku.edu"
 version: "dev"
 
-homepage: "https://github.com/ku-sldg/rocq-candy"
-dev-repo: "git+https://github.com/ku-sldg/rocq-candy.git"
-bug-reports: "https://github.com/ku-sldg/rocq-candy/issues"
+homepage: "https://github.com/ku-sldg/RocqCandy"
+dev-repo: "git+https://github.com/ku-sldg/RocqCandy.git"
+bug-reports: "https://github.com/ku-sldg/RocqCandy/issues"
 license: "CC-BY-SA-4.0"
 
 synopsis: "Snippets of nice and useful (maybe even yummy) Rocq code"
@@ -22,7 +22,7 @@ depends: [
 ]
 
 tags: [
-  "logpath:rocq-candy"
+  "logpath:RocqCandy"
 ]
 authors: [
   "Will Thomas <30wthomas@ku.edu>"

@@ -1,2 +1,2 @@
--R _build/default/theories rocq-candy
+-R _build/default/theories RocqCandy
 -I _build/install/default/lib
