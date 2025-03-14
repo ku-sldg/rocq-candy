@@ -1,0 +1,2 @@
+-R _build/default/theories rocq-candy
+-I _build/install/default/lib

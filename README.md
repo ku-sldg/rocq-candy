@@ -1,16 +1,48 @@
-# Coq Template:
+<!---
+This file was generated from `meta.yml`, please do not edit manually.
+Follow the instructions on https://github.com/coq-community/templates to regenerate.
+--->
+# rocq-candy
 
-This is the `ku-sldg` template for creating new Coq projects and plugins.
-In particular, we can use this for ocaml style plugins (via `ocaml_plugin` and `dune` options) or just plain Coq libraries.
+[![Docker CI][docker-action-shield]][docker-action-link]
 
-## Pre-Reqs
-- Install [mustache](https://mustache.github.io/) (in particular linux can use `ruby-mustache` package)
+[docker-action-shield]: https://github.com/ku-sldg/rocq-candy/actions/workflows/docker-action.yml/badge.svg?branch=main
+[docker-action-link]: https://github.com/ku-sldg/rocq-candy/actions/workflows/docker-action.yml
 
-## To create a new Coq project:
-1. Create a new repository (in GitHub) based off this repo
-1. Edit the `meta.yml` file. It should be relatively well documented, but reach out to [Will](https://github.com/Durbatuluk1701)
-1. Run `make meta`
 
-## Notes:
-- Anytime your goals for the project change, make sure you modify the `meta.yml` file and re-run `make meta`
-- Anytime this generates infrastructure that is not useful, or needs to be modified, please open an issue in this repo and ping @Durbatuluk1701
+
+
+<Project Description>
+
+## Meta
+
+- Author(s):
+  - Will Thomas
+- License: [Creative Commons Attribution Share Alike 4.0 International](LICENSE)
+- Compatible Coq versions: 8.20 later
+- Compatible OCaml versions: 4.12 or later
+- Additional dependencies:
+  - [Dune](https://dune.build) 3.17 or later
+- Related publication(s): none
+
+## Building and installation instructions
+
+The easiest way to install the latest released version of rocq-candy
+is via [OPAM](https://opam.ocaml.org/doc/Install.html):
+
+```shell
+opam repo add coq-released https://coq.inria.fr/opam/released
+opam install rocq-candy
+```
+
+To instead build and install manually, do:
+
+``` shell
+git clone https://github.com/ku-sldg/rocq-candy.git
+cd rocq-candy
+dune build
+dune install
+```
+
+
+

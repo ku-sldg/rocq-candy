@@ -1,0 +1,8 @@
+; This file was generated from `meta.yml`, please do not edit manually.
+; Follow the instructions on https://github.com/coq-community/templates to regenerate.
+
+(coq.theory
+ (name rocq-candy)
+ (package rocq-candy)
+ 
+ (synopsis "Snippets of nice and useful (maybe even yummy) Rocq code"))

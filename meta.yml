@@ -1,14 +1,14 @@
 ---
 # This file is used to configure the project metadata
-fullname: <Project Name>
+fullname: rocq-candy
 # NOTE: The "shortname" is also the presumed name of the REPOSITORY this lives in!!!
-shortname: <Project Short Name> # NOTE: This is the library name that other projects will use to depend on/import from this project
-opam_name: <opam-name> # i.e. coq-Base64
-synopsis: "<Project Synopsis>"
+shortname: rocq-candy # NOTE: This is the library name that other projects will use to depend on/import from this project
+opam_name: rocq-candy # i.e. coq-Base64
+synopsis: "Snippets of nice and useful (maybe even yummy) Rocq code"
 description: "<Project Description>"
 authors:
-  - name: "<Author Name>"
-    email: "<Author Email>"
+  - name: "Will Thomas"
+    email: "30wthomas@ku.edu"
 opam-file-maintainer: "30wthomas@ku.edu" # Need a strong default here or we will accidentally email a Coq developer
 
 ######################################################
@@ -33,7 +33,7 @@ organization: ku-sldg
 # Config Options
 sldg_dev_pkgs_needed: true
 community: false # By default projects are not part of coq-community
-coqdoc: true # By default we want coqdoc
+coqdoc: false # By default we want coqdoc
 submodule: false # By default we don't want submodules
 dune: true # By default we want dune builds
 ocaml_plugin: false # By default we don't assume plugins to use ocaml code
