@@ -1,6 +1,7 @@
 (* Local copy of structural tactics library from:  https://github.com/uwplse/StructTact 
 
 We have locally modified this a great deal to add tactics that are useful for our proofs. *)
+From Coq Require Import Lia.
 
 (** [clean] removes any hypothesis of the shape [X = X]. *)
 Ltac clean :=
@@ -720,8 +721,6 @@ Ltac ff :=
       ; try solve_by_inversion *)
     )
   ).
-
-Require Import Lia.
 
 Ltac ffl :=
   repeat (ff;
