@@ -1,3 +1,3 @@
 (lang dune 3.17)
 (using coq 0.10)
-(name RocqCandy)
+(name rocq-candy)
