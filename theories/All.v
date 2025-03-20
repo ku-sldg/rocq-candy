@@ -5,7 +5,8 @@ From Coq Require Export
   Program.Basics 
   Setoid
   List
-  Lia.
+  Lia
+  ZArith.
 Export ListNotations.
 
 From RocqCandy Require Export Stringifiable Tactics.
@@ -23,4 +24,7 @@ Global Instance RelDec_EqDec T f `{EqDec T f} : RelDec f := {
   rel_dec := fun x y => if equiv_dec x y then true else false
 }.
 
+(* Common EqDec Instances we may need *)
 Global Instance EqDec_string : EqDec string eq := string_dec.
+Global Instance EqDec_nat : EqDec nat eq := Peano_dec.eq_nat_dec.
+Global Instance EqDec_Z : EqDec Z eq := Z.eq_dec.
