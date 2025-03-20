@@ -4,7 +4,8 @@ From Coq Require Export
   Program.Utils 
   Program.Basics 
   Setoid
-  List.
+  List
+  Lia.
 Export ListNotations.
 
 From RocqCandy Require Export Stringifiable Tactics.
