@@ -3,7 +3,10 @@ From Coq Require Export
   EquivDec 
   Program.Utils 
   Program.Basics 
-  Setoid.
+  Setoid
+  List.
+Export ListNotations.
+
 From RocqCandy Require Export Stringifiable Tactics.
 
 (* Exporting finite assoc list based maps *)
