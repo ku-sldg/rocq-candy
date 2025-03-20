@@ -4,5 +4,6 @@
 (coq.theory
  (name RocqCandy)
  (package rocq-candy)
+ (theories ExtLib)
  
  (synopsis "Snippets of nice and useful (maybe even yummy) Rocq code"))
