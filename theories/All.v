@@ -22,3 +22,5 @@ Defined.
 Global Instance RelDec_EqDec T f `{EqDec T f} : RelDec f := {
   rel_dec := fun x y => if equiv_dec x y then true else false
 }.
+
+Global Instance EqDec_string : EqDec string eq := string_dec.
