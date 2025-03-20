@@ -11,7 +11,7 @@ authors:
   - name: "Will Thomas"
     email: "30wthomas@ku.edu"
 opam-file-maintainer: "30wthomas@ku.edu" # Need a strong default here or we will accidentally email a Coq developer
-opam-file-version: "0.1.0"
+opam-file-version: "0.2.0"
 
 ######################################################
 # NOTE: Optional Extra Info
@@ -22,6 +22,11 @@ opam-file-version: "0.1.0"
 # keywords:
 #   - name: "<Keyword1>"
 #   - name: "<Keyword2>"
+dependencies:
+  - description: "[ExtLib](https://github.com/coq-community/coq-ext-lib)"
+    opam:
+      name: "coq-ext-lib"
+      version: '{ >= "0.13.0" }'
 
 ######################################################
 # NOTE: Stuff below this line you should not need to change

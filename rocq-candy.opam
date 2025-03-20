@@ -3,7 +3,7 @@
 
 opam-version: "2.0"
 maintainer: "30wthomas@ku.edu"
-version: "0.1.0"
+version: "0.2.0"
 
 homepage: "https://github.com/ku-sldg/rocq-candy"
 dev-repo: "git+https://github.com/ku-sldg/rocq-candy.git"
@@ -19,6 +19,7 @@ depends: [
   "ocaml" { >= "4.12~" }
   "dune" {>= "3.17"}
   "coq" 
+  "coq-ext-lib" { >= "0.13.0" }
 ]
 
 tags: [

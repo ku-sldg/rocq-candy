@@ -22,6 +22,7 @@ Follow the instructions on https://github.com/coq-community/templates to regener
 - Compatible Coq versions: 8.20 later
 - Compatible OCaml versions: 4.12 or later
 - Additional dependencies:
+  - [ExtLib](https://github.com/coq-community/coq-ext-lib)
   - [Dune](https://dune.build) 3.17 or later
 - Related publication(s): none
 

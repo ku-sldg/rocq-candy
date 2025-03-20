@@ -1,1 +1,1 @@
-From RocqCandy Require Export EqClass Maps ResultT Stringifiable Tactics.
+From RocqCandy Require Export Stringifiable Tactics.
