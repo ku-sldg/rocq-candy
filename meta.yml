@@ -3,7 +3,7 @@
 fullname: rocq-candy
 # NOTE: The "shortname" is also the presumed name of the REPOSITORY this lives in!!!
 shortname: rocq-candy
-lib-name: RocqCandy
+lib_name: RocqCandy
 opam_name: rocq-candy # i.e. coq-Base64
 synopsis: "Snippets of nice and useful (maybe even yummy) Rocq code"
 description: "<Project Description>"
@@ -27,6 +27,7 @@ dependencies:
     opam:
       name: "coq-ext-lib"
       version: '{ >= "0.13.0" }'
+      lib_name: "ExtLib"
 
 ######################################################
 # NOTE: Stuff below this line you should not need to change
