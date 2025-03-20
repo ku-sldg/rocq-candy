@@ -12,6 +12,7 @@ From RocqCandy Require Export Stringifiable Tactics.
 
 (* Exporting finite assoc list based maps *)
 From ExtLib Require Export RelDec Maps FMapAList.
+Export MonadNotation.
 
 Definition FMap K V `{RelDec K} := alist K V.
 Global Instance Map_FMap K V `{RelDec K} : Map K V (FMap K V).
