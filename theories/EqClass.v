@@ -68,6 +68,10 @@ Ltac destEq t1 t2 :=
 
 Ltac break_eqs :=
   repeat match goal with
+  | H : context [ eqb ?p1 ?p1 ] |- _ =>
+      erewrite eqb_refl in H
+  | |- context [ eqb ?p1 ?p1 ] =>
+      erewrite eqb_refl
   | H : context [ eqb ?p1 ?p2 ] |- _ =>
       destEq p1 p2
   | |- context [ eqb ?p1 ?p2 ] =>
@@ -83,15 +87,17 @@ Ltac break_eqs :=
   end.
 
 Ltac eq_crush :=
-  eauto;
-  try simple congruence 1;
-  subst_max;
-  break_eqs;
-  subst_max;
-  full_do_bool;
-  subst_max;
-  try congruence;
-  eauto.
+  repeat (
+    eauto;
+    try simple congruence 1;
+    subst_max;
+    break_eqs;
+    subst_max;
+    full_do_bool;
+    subst_max;
+    try congruence;
+    eauto
+  ).
 
 Definition list_eqb_eqb {A : Type} (eqbA : A -> A -> bool) :=
   fix F l1 l2 :=
@@ -135,11 +141,6 @@ Proof.
     erewrite IHa1; eauto.
 Qed.
 
-Global Instance EqClass_extends_to_list (A : Type) `{H : EqClass A} : EqClass (list A) := {
-  eqb := general_list_eq_class_eqb ;
-  eqb_eq := general_list_eqb_eq
-}.
-
 Lemma nat_eqb_eq : forall n1 n2 : nat,
   Nat.eqb n1 n2 = true <-> n1 = n2.
 Proof.
@@ -150,43 +151,29 @@ Proof.
   - subst. simpl. rewrite IHn1; eauto.
 Qed.
 
-Global Instance str_eq_class : EqClass string :=
-  { eqb:= String.eqb;
-    eqb_eq := String.eqb_eq }.
+(* Instances *)
 
-Global Instance nat_EqClass : EqClass nat :=
-  { eqb:= Nat.eqb;
-    eqb_eq := nat_eqb_eq }.
+Global Instance EqClass_list (A : Type) `{H : EqClass A} : EqClass (list A) := {
+  eqb := general_list_eq_class_eqb ;
+  eqb_eq := general_list_eqb_eq
+}.
 
-Definition eqbPair{A B:Type}`{H:EqClass A}`{H':EqClass B} (p1:A*B) (p2:A*B) : bool :=
-  match (p1,p2) with
-  | ((a1,b1), (a2,b2)) => andb (eqb a1 a2) (eqb b1 b2)
-  end.
+Global Instance EqClass_string : EqClass string := { 
+  eqb:= String.eqb;
+  eqb_eq := String.eqb_eq 
+}.
 
-Lemma beq_pair_true{A B:Type}`{H:EqClass A}`{H':EqClass B} : forall (p1 p2:(A*B)),
-    eqbPair p1 p2 = true -> p1 = p2.
-Proof.
-  intros.
-  unfold eqbPair in *.
-  destruct p1, p2.
-  eq_crush.
-Qed.
+Global Instance EqClass_nat : EqClass nat := { 
+  eqb:= Nat.eqb;
+  eqb_eq := nat_eqb_eq 
+}.
 
-Lemma pair_eqb_eq{A B:Type}`{H:EqClass A}`{H':EqClass B} : forall (p1 p2:(A*B)),
-    eqbPair p1 p2 = true <-> p1 = p2.
-Proof.
-  intros.
-  split.
-  - eapply beq_pair_true; eauto.
-  - ff.
-    unfold eqbPair.
-    ff.
-    eq_crush.
-Qed.
-
-Global Instance pair_EqClass{A B:Type}`{H:EqClass A}`{H':EqClass B} : EqClass (A*B) :=
-  { eqb:= eqbPair;
-    eqb_eq := pair_eqb_eq }.
+Global Instance EqClass_prod {A B:Type} `{EqClass A, EqClass B} : EqClass (A*B).
+refine (Build_EqClass _ 
+  (fun '(a1,b1) '(a2,b2) => andb (eqb a1 a2) (eqb b1 b2)) 
+  (fun '(a1, b1) '(a2, b2) => _)).
+ff; eq_crush.
+Defined.
 
 Global Instance EqClass_impl_EqDec (A : Type) `{H : EqClass A} : EqDec A eq.
 intros x y.
