@@ -9,7 +9,7 @@ From Coq Require Export
   ZArith.
 Export ListNotations.
 
-From RocqCandy Require Export Stringifiable Tactics.
+From RocqCandy Require Export Stringifiable Tactics EqClass.
 
 (* Exporting finite assoc list based maps *)
 From ExtLib Require Export RelDec Maps FMapAList.
@@ -22,6 +22,10 @@ Defined.
 
 Global Instance RelDec_EqDec T f `{EqDec T f} : RelDec f := {
   rel_dec := fun x y => if equiv_dec x y then true else false
+}.
+
+Global Instance RelDec_EqClass T (f : T -> T -> Prop) `{EqClass T} : RelDec f := {
+  rel_dec := fun x y => eqb x y
 }.
 
 (* Common EqDec Instances we may need *)

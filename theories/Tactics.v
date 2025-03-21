@@ -1,7 +1,9 @@
 (* Local copy of structural tactics library from:  https://github.com/uwplse/StructTact 
 
 We have locally modified this a great deal to add tactics that are useful for our proofs. *)
-From Coq Require Import Lia.
+From Coq Require Import Lia Bool.
+
+From ExtLib Require Export Tactics BoolTac.
 
 (** [clean] removes any hypothesis of the shape [X = X]. *)
 Ltac clean :=
@@ -649,6 +651,21 @@ Ltac break_exists_name x :=
   match goal with
   | [ H : exists _, _ |- _ ] => destruct H as [x H]
   end.
+
+Ltac full_do_bool :=
+  do_bool;
+  (* Do bool from extlib does well on hyps, but not goals *)
+  repeat 
+    (match goal with
+    | |- context [andb ?x ?y = true] => 
+      erewrite andb_true_iff; split; do_bool
+    | |- context [andb ?x ?y = false] => 
+      erewrite andb_false_iff; split; do_bool
+    | |- context [orb ?x ?y = true] => 
+      erewrite orb_true_iff; do_bool; eauto
+    | |- context [orb ?x ?y = false] => 
+      erewrite orb_false_iff; do_bool; eauto
+    end; try simple congruence 1).
 
 Tactic Notation "check_num_goals" natural(n) :=
   let num := numgoals in
