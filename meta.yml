@@ -5,13 +5,13 @@ fullname: rocq-candy
 shortname: rocq-candy
 lib_name: RocqCandy
 opam_name: rocq-candy # i.e. coq-Base64
-synopsis: "Snippets of nice and useful (maybe even yummy) Rocq code"
-description: "<Project Description>"
+synopsis: "Snippets of nice and useful Rocq code utilized by the KU-SLDG Lab"
+description: "This library contains snippets of nice and useful Rocq code utilized by the KU-SLDG Lab. It is not intended to be a full-fledged library, but rather a collection of useful code that can be shared between projects."
 authors:
   - name: "Will Thomas"
     email: "30wthomas@ku.edu"
 opam-file-maintainer: "30wthomas@ku.edu" # Need a strong default here or we will accidentally email a Coq developer
-opam-file-version: "0.2.0"
+opam-file-version: "0.2.1"
 
 ######################################################
 # NOTE: Optional Extra Info
@@ -28,6 +28,10 @@ dependencies:
       name: "coq-ext-lib"
       version: '{ >= "0.13.0" }'
       lib_name: "ExtLib"
+ci_extra_repos:
+  - description: "KU-SLDG Packages"
+    name: "ku-sldg/opam-repo"
+    url: "https://github.com/ku-sldg/opam-repo.git"
 
 ######################################################
 # NOTE: Stuff below this line you should not need to change
@@ -39,7 +43,6 @@ branch: main
 organization: ku-sldg
 
 # Config Options
-sldg_dev_pkgs_needed: true
 community: false # By default projects are not part of coq-community
 coqdoc: false # By default we want coqdoc
 submodule: false # By default we don't want submodules

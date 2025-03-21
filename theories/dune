@@ -6,4 +6,4 @@
  (package rocq-candy)
  (theories ExtLib)
  
- (synopsis "Snippets of nice and useful (maybe even yummy) Rocq code"))
+ (synopsis "Snippets of nice and useful Rocq code utilized by the KU-SLDG Lab"))

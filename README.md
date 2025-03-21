@@ -12,7 +12,7 @@ Follow the instructions on https://github.com/coq-community/templates to regener
 
 
 
-<Project Description>
+This library contains snippets of nice and useful Rocq code utilized by the KU-SLDG Lab. It is not intended to be a full-fledged library, but rather a collection of useful code that can be shared between projects.
 
 ## Meta
 
@@ -32,6 +32,7 @@ The easiest way to install the latest released version of rocq-candy
 is via [OPAM](https://opam.ocaml.org/doc/Install.html):
 
 ```shell
+opam repo add -a --set-default ku-sldg/opam-repo https://github.com/ku-sldg/opam-repo.git
 opam repo add coq-released https://coq.inria.fr/opam/released
 opam install rocq-candy
 ```

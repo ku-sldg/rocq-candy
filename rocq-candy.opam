@@ -3,16 +3,16 @@
 
 opam-version: "2.0"
 maintainer: "30wthomas@ku.edu"
-version: "0.2.0"
+version: "0.2.1"
 
 homepage: "https://github.com/ku-sldg/rocq-candy"
 dev-repo: "git+https://github.com/ku-sldg/rocq-candy.git"
 bug-reports: "https://github.com/ku-sldg/rocq-candy/issues"
 license: "CC-BY-SA-4.0"
 
-synopsis: "Snippets of nice and useful (maybe even yummy) Rocq code"
+synopsis: "Snippets of nice and useful Rocq code utilized by the KU-SLDG Lab"
 description: """
-<Project Description>"""
+This library contains snippets of nice and useful Rocq code utilized by the KU-SLDG Lab. It is not intended to be a full-fledged library, but rather a collection of useful code that can be shared between projects."""
 
 build: ["dune" "build" "-p" name "-j" jobs]
 depends: [
