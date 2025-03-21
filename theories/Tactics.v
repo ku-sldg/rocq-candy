@@ -652,21 +652,6 @@ Ltac break_exists_name x :=
   | [ H : exists _, _ |- _ ] => destruct H as [x H]
   end.
 
-Ltac full_do_bool :=
-  do_bool;
-  (* Do bool from extlib does well on hyps, but not goals *)
-  repeat 
-    (match goal with
-    | |- context [andb ?x ?y = true] => 
-      erewrite andb_true_iff; split; do_bool
-    | |- context [andb ?x ?y = false] => 
-      erewrite andb_false_iff; split; do_bool
-    | |- context [orb ?x ?y = true] => 
-      erewrite orb_true_iff; do_bool; eauto
-    | |- context [orb ?x ?y = false] => 
-      erewrite orb_false_iff; do_bool; eauto
-    end; try simple congruence 1).
-
 Tactic Notation "check_num_goals" natural(n) :=
   let num := numgoals in
   guard num = n.
@@ -686,6 +671,23 @@ Ltac break_iff :=
   match goal with
   | |- _ <-> _ => split; intros
   end.
+
+Ltac full_do_bool :=
+  intros; break_logic_hyps;
+  do_bool;
+  (* Do bool from extlib does well on hyps, but not goals *)
+  repeat 
+    (match goal with
+    | |- context [andb ?x ?y = true] => 
+      erewrite andb_true_iff; split; do_bool
+    | |- context [andb ?x ?y = false] => 
+      erewrite andb_false_iff; split; do_bool
+    | |- context [orb ?x ?y = true] => 
+      erewrite orb_true_iff; do_bool; eauto
+    | |- context [orb ?x ?y = false] => 
+      erewrite orb_false_iff; do_bool; eauto
+    end; try simple congruence 1);
+  try simple congruence 1.
 
 Ltac max_RW :=
   simpl in *;

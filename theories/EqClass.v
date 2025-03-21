@@ -67,37 +67,40 @@ Ltac destEq t1 t2 :=
   subst; eauto.
 
 Ltac break_eqs :=
-  repeat match goal with
-  | H : context [ eqb ?p1 ?p1 ] |- _ =>
-      erewrite eqb_refl in H
-  | |- context [ eqb ?p1 ?p1 ] =>
-      erewrite eqb_refl
-  | H : context [ eqb ?p1 ?p2 ] |- _ =>
-      destEq p1 p2
-  | |- context [ eqb ?p1 ?p2 ] =>
-      destEq p1 p2
-  | p1 : ?T, p2 : ?T |- _ => 
-      tryif (
-        (* If we already have NEQ hyps, don't make more *)
-        match goal with
-        | HP : p1 <> p2 |- _ => idtac
-        end)
-      then fail
-      else destEq p1 p2
-  end.
-
-Ltac eq_crush :=
   repeat (
-    eauto;
-    try simple congruence 1;
-    subst_max;
-    break_eqs;
+    match goal with
+    | H : context [ eqb ?p1 ?p1 ] |- _ =>
+        erewrite eqb_refl in H
+    | |- context [ eqb ?p1 ?p1 ] =>
+        erewrite eqb_refl
+    | H : context [ eqb ?p1 ?p2 ] |- _ =>
+        destEq p1 p2
+    | |- context [ eqb ?p1 ?p2 ] =>
+        destEq p1 p2
+    | p1 : ?T, p2 : ?T |- _ => 
+        tryif (
+          (* If we already have NEQ hyps, don't make more *)
+          match goal with
+          | HP : p1 <> p2 |- _ => idtac
+          end)
+        then fail
+        else destEq p1 p2
+    end;
     subst_max;
     full_do_bool;
-    subst_max;
-    try congruence;
-    eauto
+    try simple congruence 1
   ).
+
+Ltac eq_crush :=
+  eauto;
+  try simple congruence 1;
+  subst_max;
+  break_eqs;
+  subst_max;
+  full_do_bool;
+  subst_max;
+  try congruence;
+  eauto.
 
 Definition list_eqb_eqb {A : Type} (eqbA : A -> A -> bool) :=
   fix F l1 l2 :=
