@@ -83,12 +83,15 @@ Ltac break_eqs :=
   end.
 
 Ltac eq_crush :=
+  eauto;
+  try simple congruence 1;
   subst_max;
   break_eqs;
   subst_max;
   full_do_bool;
   subst_max;
-  try congruence.
+  try congruence;
+  eauto.
 
 Definition list_eqb_eqb {A : Type} (eqbA : A -> A -> bool) :=
   fix F l1 l2 :=
