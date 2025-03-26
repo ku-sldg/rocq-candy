@@ -117,12 +117,11 @@ Theorem list_eqb_eq : forall {A : Type} (eqbA : A -> A -> bool),
 Proof.
   induction l1; destruct l2; split; intros; simpl in *; eauto; try congruence.
   - unfold andb in H0. destruct (eqbA a a0) eqn:E.
-    * rewrite H in E; subst; eauto; rewrite IHl1 in H0; subst; eauto.
+    * rw_all.
     * congruence.
   - inversion H0; subst.
-    unfold andb. destruct (eqbA a0 a0) eqn:E; eauto.
-    * erewrite IHl1; eauto.
-    * pose proof (H a0 a0). intuition. congruence.
+    unfold andb. destruct (eqbA a0 a0) eqn:E; eauto; rw_all.
+    * rewrite <- E; rw_all.
 Qed.
 
 Fixpoint general_list_eq_class_eqb {A : Type} `{H : EqClass A} (l1 l2 : list A) : bool :=
@@ -137,11 +136,10 @@ Theorem general_list_eqb_eq : forall {A : Type} `{H : EqClass A},
 Proof.
   induction a1; destruct a2; split; intros; simpl in *; eauto; try congruence.
   - unfold andb in H0. destruct (eqb a a0) eqn:E.
-    * rewrite eqb_eq in E; subst. rewrite IHa1 in H0. subst; eauto.
+    * rewrite eqb_eq in E; subst; rw_all.
     * congruence.
   - inversion H0; subst.
-    eq_crush.
-    erewrite IHa1; eauto.
+    eq_crush; rw_all.
 Qed.
 
 Lemma nat_eqb_eq : forall n1 n2 : nat,
@@ -149,9 +147,7 @@ Lemma nat_eqb_eq : forall n1 n2 : nat,
 Proof.
   induction n1; destruct n2; 
   split; intros; eauto;
-  inversion H.
-  - rewrite IHn1 in H1. subst; eauto.
-  - subst. simpl. rewrite IHn1; eauto.
+  inversion H; rw_all; simpl; rw_all.
 Qed.
 
 (* Instances *)

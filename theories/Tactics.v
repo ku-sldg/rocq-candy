@@ -785,3 +785,21 @@ Ltac target_break_match H :=
     try simple congruence 1; try target_break_match Hbm;
     try target_break_match H
   end.
+
+Ltac rw_all :=
+  subst_max;
+  repeat (
+    match goal with
+    | H : context [iff _ _] , H' : _ |- _ => 
+      erewrite H in H'
+    | H : context [eq _ _] , H' : _ |- _ => 
+      erewrite H in H'
+    | H : context [iff _ _] |- _ => 
+      erewrite H
+    | H : context [eq _ _] |- _ =>
+      erewrite H
+    end;
+    subst_max;
+    eauto;
+    try simple congruence 1
+  ); eauto.
