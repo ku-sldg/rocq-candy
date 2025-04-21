@@ -41,7 +41,7 @@ Module Result.
       (at level 61, x at next level) : result_scope.
 
     Notation "x '<?>' y" := (unwrap_or x y)
-      (at level 61, y at next level) : result_scope.
+      (at level 10, left associativity) : result_scope.
 
   End Notation.
 
