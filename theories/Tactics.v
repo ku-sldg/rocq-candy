@@ -1,7 +1,8 @@
 (* Local copy of structural tactics library from:  https://github.com/uwplse/StructTact 
 
 We have locally modified this a great deal to add tactics that are useful for our proofs. *)
-From Coq Require Import Lia Bool.
+From Coq Require Import Lia Bool String List.
+Import ListNotations.
 
 From ExtLib Require Export Tactics BoolTac.
 
@@ -697,6 +698,24 @@ Ltac max_RW :=
 Ltac breaker :=
   repeat (break_match; subst; try congruence).
 
+Ltac rw_all :=
+  subst_max;
+  repeat (
+    match goal with
+    | H : context [iff _ _] , H' : _ |- _ => 
+      erewrite H in H'
+    | H : context [eq _ _] , H' : _ |- _ => 
+      erewrite H in H'
+    | H : context [iff _ _] |- _ => 
+      erewrite H
+    | H : context [eq _ _] |- _ =>
+      erewrite H
+    end;
+    subst_max;
+    eauto;
+    try simple congruence 1
+  ); eauto.
+
 (* Simplification hammer.  Used at beginning of many proofs in this 
    development.  Conservative simplification, break matches, 
    invert on resulting goals *)
@@ -741,51 +760,66 @@ Ltac ff :=
     )
   ).
 
-Ltac ff_new :=
+(* Base tactic that all others use *)
+Ltac ffc custom :=
   repeat (
-    try unfold not in *;
-    intros;
-    (* Break up logical statements *)
-    repeat break_and;
-    repeat break_exists;
-    try break_iff;
-    (* 
-    This is proving too computationly expensive to do in general
-
-    (* We only break up goal ANDs f we <= the total number of goals *)
-    try (
-      let num := numgoals in
-      break_and_goal; ff; 
-      let num2 := numgoals in
-      guard num2 <= num);
-    *)
-    (* We only break up hyp ORs if we <= the total number of goals *)
-    try (
-      let num := numgoals in
-      break_or_hyp; ff; 
-      let num2 := numgoals in
-      guard num2 <= num);
-    repeat (
-      simpl in *;
-      repeat find_rewrite;
-      try break_match;
-      try congruence;
-      repeat find_rewrite;
-      try congruence;
-      repeat find_injection;
-      try congruence;
-      simpl in *;
-      subst_max; eauto;
-      try congruence
-      (* Too expensive in general
-      ; try solve_by_inversion *)
-    );
-    autounfold in *
+    ff;
+    custom;
+    ff
   ).
 
-Ltac ffl :=
+(* Individual flag tactics *)
+Ltac ff_flag_lia := try lia.
+Ltac ff_flag_unfold := repeat autounfold in *.
+Ltac ff_flag_apply := repeat find_apply_hyp_hyp.
+Ltac ff_flag_rw := rw_all.
+
+(* Dispatcher for a single flag string *)
+Local Open Scope string_scope.
+
+Ltac ff_dispatch_flag flag :=
+  lazymatch flag with
+  | "l" => ff_flag_lia
+  | "u" => ff_flag_unfold
+  | "a" => ff_flag_apply
+  | "r" => ff_flag_rw
+  | _ => fail "Unknown flag for 'ffc':" flag
+  end.
+
+(* Main driver: applies ff; <custom>; ff repeatedly *)
+Ltac flag_caller flags :=
+  lazymatch flags with
+  | (?flag :: ?rest) =>
+      ff_dispatch_flag flag;
+      flag_caller rest
+  | nil => idtac
+  end.
+
+Ltac ff_core flags :=
+  repeat (
+    ff;
+    flag_caller flags;
+    ff
+  ).
+
+(* Convenience notation: ffc with flags *)
+Tactic Notation "ff" "with" constr_list(flags) :=
+  let parsed := eval cbv in flags in
+  ff_core parsed.
+
+Ltac ffu := ff with ["u"].
+Ltac ffl := ff with ["l"].
+Ltac ffa := ff with ["a"].
+Ltac ffr := ff with ["r"].
+
+(* Ltac ffl :=
   repeat (ff;
     try lia;
+  ff).
+
+Ltac ffu :=
+  repeat (ff;
+    repeat autounfold in *;
   ff).
 
 Ltac ffa :=
@@ -793,11 +827,21 @@ Ltac ffa :=
     repeat find_apply_hyp_hyp;
     ff).
 
+Ltac ffr :=
+  repeat (ff;
+    rw_all;
+    ff).
+
+Tactic Notation "ffc" "using" tactic2(tac) :=
+  repeat (ff;
+    tac;
+    ff). 
+
 Tactic Notation "ffa" "using" tactic2(tac) :=
   repeat (ff;
     repeat find_apply_hyp_hyp;
     tac;
-    ff).
+    ff). *)
 
 Ltac target_find_rewrite H :=
   lazymatch type of H with
@@ -827,21 +871,3 @@ Ltac target_break_match H :=
     try simple congruence 1; try target_break_match Hbm;
     try target_break_match H
   end.
-
-Ltac rw_all :=
-  subst_max;
-  repeat (
-    match goal with
-    | H : context [iff _ _] , H' : _ |- _ => 
-      erewrite H in H'
-    | H : context [eq _ _] , H' : _ |- _ => 
-      erewrite H in H'
-    | H : context [iff _ _] |- _ => 
-      erewrite H
-    | H : context [eq _ _] |- _ =>
-      erewrite H
-    end;
-    subst_max;
-    eauto;
-    try simple congruence 1
-  ); eauto.
