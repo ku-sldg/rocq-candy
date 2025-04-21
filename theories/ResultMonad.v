@@ -36,5 +36,7 @@ Module Result.
       (at level 10, left associativity).
     Hint Unfold ret : core.
     Hint Unfold raise : core.
+    Hint Unfold Result.ret : core.
+    Hint Unfold Result.raise : core.
   End Notation.
 End Result.

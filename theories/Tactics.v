@@ -741,6 +741,48 @@ Ltac ff :=
     )
   ).
 
+Ltac ff_new :=
+  repeat (
+    try unfold not in *;
+    intros;
+    (* Break up logical statements *)
+    repeat break_and;
+    repeat break_exists;
+    try break_iff;
+    (* 
+    This is proving too computationly expensive to do in general
+
+    (* We only break up goal ANDs f we <= the total number of goals *)
+    try (
+      let num := numgoals in
+      break_and_goal; ff; 
+      let num2 := numgoals in
+      guard num2 <= num);
+    *)
+    (* We only break up hyp ORs if we <= the total number of goals *)
+    try (
+      let num := numgoals in
+      break_or_hyp; ff; 
+      let num2 := numgoals in
+      guard num2 <= num);
+    repeat (
+      simpl in *;
+      repeat find_rewrite;
+      try break_match;
+      try congruence;
+      repeat find_rewrite;
+      try congruence;
+      repeat find_injection;
+      try congruence;
+      simpl in *;
+      subst_max; eauto;
+      try congruence
+      (* Too expensive in general
+      ; try solve_by_inversion *)
+    );
+    autounfold in *
+  ).
+
 Ltac ffl :=
   repeat (ff;
     try lia;

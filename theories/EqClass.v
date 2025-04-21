@@ -13,50 +13,21 @@ Class EqClass (A : Type) := {
   eqb_eq : forall x y, eqb x y = true <-> x = y 
 }.
 
-Theorem eqb_refl : forall {A : Type} `{EqClass A} a,
+(* NOTE: These theorems don't go inside the section 
+because the Ltac needs them, and Ltac cannot be exported from a section
+*)
+Theorem eqb_refl : forall {A} `{EqClass A} a,
   eqb a a = true.
 Proof.
   intros; erewrite eqb_eq; eauto.
 Qed.
 
-Theorem eqb_neq : forall {A : Type} `{EqClass A} a b,
+Theorem eqb_neq : forall {A} `{EqClass A} a b,
   eqb a b = false <-> a <> b.
 Proof.
   ff; try (rewrite eqb_refl in *; congruence);
   destruct (eqb a b) eqn:E; eauto;
   rewrite eqb_eq in *; ff.
-Qed.
-
-Theorem EqClass_impl_DecEq: forall (A : Type) `{H : EqClass A},
-    forall (x y : A), {x = y} + {x <> y}.
-Proof.
-  intros; destruct H;
-  destruct (eqb0 x y) eqn:E.
-  - eapply eqb_eq0 in E; ff.
-  - right; erewrite <- eqb_eq0; intros HC; congruence.
-Qed.
-
-Theorem eqb_symm_true : forall {A : Type} `{EqClass A} a1 a2,
-  eqb a1 a2 = true <->
-  eqb a2 a1 = true.
-Proof.
-  intros; repeat erewrite eqb_eq; intuition.
-Qed.
-
-Theorem eqb_symm : forall {A : Type} `{EqClass A} a1 a2,
-  eqb a1 a2 = eqb a2 a1.
-Proof.
-  intros; destruct (eqb a1 a2) eqn:E1, (eqb a2 a1) eqn:E2; eauto;
-  rewrite eqb_eq in *; subst; 
-  rewrite eqb_refl in *; congruence.
-Qed.
-
-Theorem eqb_transitive : forall {A : Type} `{EqClass A} a1 a2 a3,
-  eqb a1 a2 = true ->
-  eqb a2 a3 = true ->
-  eqb a1 a3 = true.
-Proof.
-  intros; repeat erewrite eqb_eq in *; subst; eauto.
 Qed.
 
 Ltac destEq t1 t2 :=
@@ -102,6 +73,33 @@ Ltac eq_crush :=
   try congruence;
   eauto.
 
+Section Theories.
+  Context {A : Type}.
+  Context  {EqA : EqClass A}.
+
+  Theorem EqClass_impl_DecEq: forall (x y : A), {x = y} + {x <> y}.
+  Proof.
+    ff; eq_crush.
+  Qed.
+
+  Theorem eqb_symm : forall a1 a2,
+    eqb a1 a2 = eqb a2 a1.
+  Proof.
+    ff; eq_crush.
+  Qed.
+
+  Theorem eqb_transitive : forall a1 a2 a3,
+    eqb a1 a2 = true ->
+    eqb a2 a3 = true ->
+    eqb a1 a3 = true.
+  Proof.
+    ff; eq_crush.
+  Qed.
+
+End Theories.
+
+(* Tactics *)
+
 Definition list_eqb_eqb {A : Type} (eqbA : A -> A -> bool) :=
   fix F l1 l2 :=
     match l1, l2 with
@@ -134,12 +132,8 @@ Fixpoint general_list_eq_class_eqb {A : Type} `{H : EqClass A} (l1 l2 : list A) 
 Theorem general_list_eqb_eq : forall {A : Type} `{H : EqClass A},
   forall (a1 a2 : list A), general_list_eq_class_eqb a1 a2 = true <-> a1 = a2.
 Proof.
-  induction a1; destruct a2; split; intros; simpl in *; eauto; try congruence.
-  - unfold andb in H0. destruct (eqb a a0) eqn:E.
-    * rewrite eqb_eq in E; subst; rw_all.
-    * congruence.
-  - inversion H0; subst.
-    eq_crush; rw_all.
+  induction a1; destruct a2; split; intros; simpl in *; eauto; 
+  try congruence; eq_crush; rw_all.
 Qed.
 
 Lemma nat_eqb_eq : forall n1 n2 : nat,
