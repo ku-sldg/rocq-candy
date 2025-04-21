@@ -1,15 +1,16 @@
 From Coq Require Export String.
 Local Open Scope string_scope.
-From RocqCandy Require Import Tactics.
-From ExtLib Require Export Monad EitherMonad MonadExc.
-Import MonadNotation.
+From RocqCandy Require Import Tactics ResultMonad.
+Import Result.Notation.
+(* From ExtLib Require Export Monad EitherMonad MonadExc. *)
+(* Import MonadNotation. *)
 
 Class Stringifiable (A : Type) :=
   {
     to_string                   : A -> string ;
-    from_string                 : string -> string + A ;
+    from_string                 : string -> (Result.t A string) ;
     canonical_stringification   : forall a, 
-      from_string (to_string a) = ret a;
+      from_string (to_string a) = ret a 
   }.
 
 Global Instance Stringifiable_string : Stringifiable string :=

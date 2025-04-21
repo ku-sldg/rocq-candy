@@ -10,10 +10,9 @@ From Coq Require Export
 Export ListNotations.
 
 (* Exporting finite assoc list based maps *)
-From ExtLib Require Export RelDec Maps FMapAList Monads.
-Export MonadNotation.
+From ExtLib Require Export RelDec Maps FMapAList.
 
-From RocqCandy Require Export Stringifiable Tactics EqClass.
+From RocqCandy Require Export Stringifiable Tactics EqClass ResultMonad.
 
 Global Instance RelDec_EqDec T f `{EqDec T f} : RelDec f := {
   rel_dec := fun x y => if equiv_dec x y then true else false
