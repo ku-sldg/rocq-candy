@@ -20,10 +20,14 @@ Module Result.
     match x with
     | res a => a
     | err _ => default
-    end.
+    end.  
+    
+  Module Export Notation.
+    (* Export as unqualified names *)
+    Definition ret {A B} a := @ret A B a.
+    Definition raise {A B} b := @raise A B b.
+    Definition unwrap_or {A B} x default := @unwrap_or A B x default.
 
-  (* Notation scope *)
-  Module Notation.
     Notation "x <- c1 ;; c2" := (bind c1 (fun x => c2))
       (at level 61, c1 at next level, right associativity).
 
@@ -31,16 +35,7 @@ Module Result.
       (bind c1 (fun x => match x with pat => c2 end))
       (at level 61, pat pattern, c1 at next level, right associativity).
 
-    Notation "'ret' x" := (ret x)
-      (at level 61, x at next level).
-
-    Notation "'raise' x" := (raise x)
-      (at level 61, x at next level).
-
-    Notation "x '<?>' y" := (unwrap_or x y)
-      (at level 10, left associativity).
+    Notation "x '<?>' y" := (unwrap_or x y) (at level 10, left associativity).
 
   End Notation.
-
-  Export Notation.
 End Result.
