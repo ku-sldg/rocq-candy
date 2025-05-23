@@ -5,7 +5,7 @@ Authors:  Adam Petz, ampetz@ku.edu
           Will Thomas, 30wthomas@ku.edu
  *)
 
-From Coq Require Import EquivDec Setoid String List.
+From Stdlib Require Import EquivDec Setoid String List.
 From RocqCandy Require Import Tactics.
 
 Class EqClass (A : Type) := { 
@@ -25,9 +25,8 @@ Qed.
 Theorem eqb_neq : forall {A} `{EqClass A} a b,
   eqb a b = false <-> a <> b.
 Proof.
-  ff; try (rewrite eqb_refl in *; congruence);
-  destruct (eqb a b) eqn:E; eauto;
-  rewrite eqb_eq in *; ff.
+  pps @eqb_refl, @eqb_eq.
+  ff "r"; destruct (eqb a b) eqn:E; ff "r".
 Qed.
 
 Ltac destEq t1 t2 :=
@@ -73,19 +72,25 @@ Ltac eq_crush :=
   try congruence;
   eauto.
 
+Ltac2 Notation "eq_crush" :=
+  ltac1:(eq_crush).
+
+Ltac2 Set tac_table as old_tt :=
+  fun () => extend_tac_table ("e", ltac1:(eq_crush)) old_tt.
+
 Section Theories.
   Context {A : Type}.
   Context  {EqA : EqClass A}.
 
   Theorem EqClass_impl_DecEq: forall (x y : A), {x = y} + {x <> y}.
   Proof.
-    ff; eq_crush.
+    ff "e".
   Qed.
 
   Theorem eqb_symm : forall a1 a2,
     eqb a1 a2 = eqb a2 a1.
   Proof.
-    ff; eq_crush.
+    ff "e".
   Qed.
 
   Theorem eqb_transitive : forall a1 a2 a3,
@@ -93,7 +98,7 @@ Section Theories.
     eqb a2 a3 = true ->
     eqb a1 a3 = true.
   Proof.
-    ff; eq_crush.
+    ff "e".
   Qed.
 
 End Theories.
@@ -113,13 +118,7 @@ Theorem list_eqb_eq : forall {A : Type} (eqbA : A -> A -> bool),
   (forall a1 a2, In a1 l1 -> eqbA a1 a2 = true <-> a1 = a2) ->
   forall (l2 : list A), list_eqb_eqb eqbA l1 l2 = true <-> l1 = l2.
 Proof.
-  induction l1; destruct l2; split; intros; simpl in *; eauto; try congruence.
-  - unfold andb in H0. destruct (eqbA a a0) eqn:E.
-    * rw_all.
-    * congruence.
-  - inversion H0; subst.
-    unfold andb. destruct (eqbA a0 a0) eqn:E; eauto; rw_all.
-    * rewrite <- E; rw_all.
+  induction l1; destruct l2; split; ff "er".
 Qed.
 
 Fixpoint general_list_eq_class_eqb {A : Type} `{H : EqClass A} (l1 l2 : list A) : bool :=
@@ -132,16 +131,13 @@ Fixpoint general_list_eq_class_eqb {A : Type} `{H : EqClass A} (l1 l2 : list A) 
 Theorem general_list_eqb_eq : forall {A : Type} `{H : EqClass A},
   forall (a1 a2 : list A), general_list_eq_class_eqb a1 a2 = true <-> a1 = a2.
 Proof.
-  induction a1; destruct a2; split; intros; simpl in *; eauto; 
-  try congruence; eq_crush; rw_all.
+  induction a1; destruct a2; split; ff "er".
 Qed.
 
 Lemma nat_eqb_eq : forall n1 n2 : nat,
   Nat.eqb n1 n2 = true <-> n1 = n2.
 Proof.
-  induction n1; destruct n2; 
-  split; intros; eauto;
-  inversion H; rw_all; simpl; rw_all.
+  induction n1; destruct n2; ff "er".
 Qed.
 
 (* Instances *)
@@ -161,11 +157,14 @@ Global Instance EqClass_nat : EqClass nat := {
   eqb_eq := nat_eqb_eq 
 }.
 
+Ltac2 Notation "ref" x(preterm) :=
+  ltac1:(x |- refine x) (Ltac1.of_preterm x).
+
 Global Instance EqClass_prod {A B:Type} `{EqClass A, EqClass B} : EqClass (A*B).
-refine (Build_EqClass _ 
+ref (Build_EqClass _ 
   (fun '(a1,b1) '(a2,b2) => andb (eqb a1 a2) (eqb b1 b2)) 
   (fun '(a1, b1) '(a2, b2) => _)).
-ff; eq_crush.
+ff "e".
 Defined.
 
 Global Instance EqClass_impl_EqDec (A : Type) `{H : EqClass A} : EqDec A eq.

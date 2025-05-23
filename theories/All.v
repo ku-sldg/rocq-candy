@@ -1,4 +1,4 @@
-From Coq Require Export 
+From Stdlib Require Export 
   String 
   EquivDec 
   Program.Utils 
@@ -25,7 +25,7 @@ Global Instance RelDec_EqClass T `{EqClass T} : @RelDec T eq := {
 Definition FMap K V `{EqClass K} := alist K V.
 Global Instance Map_FMap K V `{EqClass K} : Map K V (FMap K V).
 eapply Map_alist; eauto.
-typeclasses eauto.
+typeclasses_eauto.
 Defined.
 
 (* Common EqDec Instances we may need *)

@@ -1,28 +1,32 @@
 (* Local copy of structural tactics library from:  https://github.com/uwplse/StructTact 
 
 We have locally modified this a great deal to add tactics that are useful for our proofs. *)
-From Stdlib Require Import Bool String List Ascii Lia.
+From Stdlib Require Import micromega.Lia Bool String List Ascii.
 Import ListNotations.
-
 From ExtLib Require Export Tactics BoolTac.
+From Ltac2 Require Export Ltac2 Control Printf Std Array Lazy FMap Constr Ident Pstring.
+Import Unsafe.
 
-From Ltac2 Require Export Ltac2 Printf Pstring Notations.
-From Ltac2 Require Import Bool Lazy Control Array Lazy FMap.
+Ltac2 array_to_fmap (arr : ('k * 'v) array) : ('k, 'v) FMap.t :=
+  Array.fold_left 
+    (fun m (kv : 'k * 'v) => FMap.add (fst kv) (snd kv) m) 
+    (FMap.empty FSet.Tags.string_tag) 
+    arr.
 
 (** [clean] removes any hypothesis of the shape [X = X]. *)
-Ltac clean :=
-  match goal with
-    | [ H : ?X = ?X |- _ ] => clear H
-  end.
+Ltac2 Notation "clean" :=
+  repeat (match! goal with
+    | [ h : ?_x = ?_x |- _ ] => 
+      clear $h
+  end).
+Ltac2 Notation clean := clean.
 
 (** [subst_max] performs as many [subst] as possible, clearing all
     trivial equalities from the context. *)
-Ltac subst_max :=
-  repeat clean;
-  repeat match goal with
-           | [ H : ?X = _ |- _ ]  => subst X
-           | [H : _ = ?X |- _] => subst X
-         end.
+Ltac2 Notation "subst_max" :=
+  repeat (clean);
+  subst. (* The ltac2 subst calls subst_all (which I hope does truly all!) *)
+Ltac2 Notation subst_max := subst_max.
 
 (** The Coq [inversion] tries to preserve your context by only adding
     new equalities, and keeping the inverted hypothesis.  Often, you
@@ -32,15 +36,36 @@ Ltac subst_max :=
     inverted hypothesis.  Sometimes, you also want to perform
     post-simplification.  [invcs] extends [invc] and tries to simplify
     what it can. *)
-Ltac inv H := inversion H; subst_max.
-Ltac invc H := inv H; clear H.
-Ltac invcs H := invc H; simpl in *.
 
-(** [inv_prop] finds the first hypothesis including the term [P] and uses [inv]
+
+(** [inv] is a tactic that performs [inversion] on a hypothesis. *)
+Ltac2 Notation "inv"
+  arg(destruction_arg) 
+  pat(opt(seq("as", intropattern)))
+  ids(opt(seq("in", list1(ident)))) :=
+  Std.inversion Std.FullInversion arg pat ids;
+  subst_max.
+
+Ltac2 Notation "invc"
+  arg(destruction_arg) 
+  pat(opt(seq("as", intropattern)))
+  ids(opt(seq("in", list1(ident)))) :=
+  Std.inversion Std.FullInversionClear arg pat ids;
+  subst_max.
+
+Ltac2 Notation "invcs"
+  arg(destruction_arg) 
+  pat(opt(seq("as", intropattern)))
+  ids(opt(seq("in", list1(ident)))) :=
+  Std.inversion Std.FullInversionClear arg pat ids;
+  subst_max;
+  simpl in *.
+
+(* (** [inv_prop] finds the first hypothesis including the term [P] and uses [inv]
     to invert it. *)
-Ltac inv_prop P :=
-  match goal with
-  | [ H : context[P] |- _] =>
+Ltac2 inv_prop p :=
+  match! goal with
+  | [ h : context[$p] |- _] =>
     inv H
   end.
 
@@ -58,7 +83,7 @@ Ltac invcs_prop P :=
   match goal with
   | [ H : context[P] |- _] =>
     invcs H
-  end.
+  end. *)
 
 (** [break_if] finds instances of [if _ then _ else _] in your goal or
     context, and destructs the discriminee, while retaining the
@@ -66,17 +91,171 @@ Ltac invcs_prop P :=
     being taken. *)
 Ltac break_if :=
   match goal with
-    | [ |- context [ if ?X then _ else _ ] ] =>
-      match type of X with
-        | sumbool _ _ => destruct X
-        | _ => destruct X eqn:?
+    | [ |- context [ if ?x then _ else _ ] ] =>
+      idtac "1";
+      match type of x with
+        | sumbool _ _ => idtac "3"; destruct x
+        | _ => idtac "4"; destruct x eqn:?
       end
-    | [ H : context [ if ?X then _ else _ ] |- _] =>
-      match type of X with
-        | sumbool _ _ => destruct X
-        | _ => destruct X eqn:?
+    | [ _h : context [ if ?x then _ else _ ] |- _] =>
+      idtac "2";
+      match type of x with
+        | sumbool _ _ => idtac "5"; destruct x
+        | _ => idtac "6"; destruct (x) eqn:?
       end
   end.
+
+Ltac2 Notation "break_if" :=
+  match! goal with
+    | [ |- context [ if ?x then _ else _ ] ] =>
+      printf "1";
+      match! type x with
+        | sumbool _ _ => printf "3"; destruct ($x)
+        | _ => printf "4"; destruct ($x) eqn:?
+      end
+    | [ _h : context [ if ?x then _ else _ ] |- _] =>
+      match! type x with
+        | sumbool _ _ => destruct ($x)
+        | _ => destruct ($x) eqn:?
+      end
+  end.
+  
+(* Ltac2 rec unpack_forall' (g : constr) (counter : int)
+    : constr * (constr * ident) list :=
+  match Constr.Unsafe.kind g with
+  | Constr.Unsafe.Prod binder body =>
+      (* We found a forall / product, recurse. *)
+      let (g', acc') := unpack_forall' body '(counter + 1) in
+      let n := Constr.Binder.name binder in
+
+
+
+  | _ =>
+      (* No more forall, return g *)
+      g, []
+  end. *)
+
+Ltac2 rec unpack_forall (g : constr) : constr :=
+  match Constr.Unsafe.kind g with
+  | Constr.Unsafe.Prod _typ body =>
+      (* We found a forall / product, recurse. *)
+      unpack_forall body
+  | _ =>
+      (* No more forall, return g *)
+      g
+  end.
+
+Ltac2 print_kind (k : Constr.Unsafe.kind) :=
+  match k with
+  | Constr.Unsafe.Rel i => 
+      printf "Rel(%i)\n" i
+  | Constr.Unsafe.Var id => 
+      printf "Var(%s)\n" (Ident.to_string id)
+  | Constr.Unsafe.Meta m => 
+      printf "Meta\n"
+  | Constr.Unsafe.Evar ev arr =>
+      printf "Evar(, <array>)\n"
+  | Constr.Unsafe.Sort s =>
+      printf "Sort(_)\n"
+  | Constr.Unsafe.Cast c _ _ =>
+      printf "Cast(_)\n"
+  | Constr.Unsafe.Prod b typ =>
+      printf "Prod(binder: %s, _)\n" 
+      (match Binder.name b with
+      | Some id => Ident.to_string id
+      | None => "None"
+      end)
+  | Constr.Unsafe.Lambda b typ =>
+      printf "Lambda(binder: %s, _)\n" (match Binder.name b with | Some id => Ident.to_string id | None => "None" end)
+  | Constr.Unsafe.LetIn b v t =>
+      printf "LetIn(binder: %s, _, _)\n" (match Binder.name b with | Some id => Ident.to_string id | None => "None" end)
+  | Constr.Unsafe.App f args =>
+      printf "App(fun, args[%i])\n" (Array.length args)
+  | Constr.Unsafe.Constant cst inst =>
+      printf "Constant()\n" 
+  | Constr.Unsafe.Ind ind inst =>
+      printf "Inductive()\n"
+  | Constr.Unsafe.Constructor ctor inst =>
+      printf "Constructor()\n"
+  | Constr.Unsafe.Case ci (c, _) how m arr =>
+      printf "Case(_, _, _, _, %i branches)\n" (Array.length arr)
+  | Constr.Unsafe.Fix idxs i bs defs =>
+      printf "Fix(%i functions)\n" (Array.length defs)
+  | Constr.Unsafe.CoFix i bs defs =>
+      printf "CoFix(%i functions)\n" (Array.length defs)
+  | Constr.Unsafe.Proj proj rel c =>
+      printf "Proj(_)\n"
+  | Constr.Unsafe.Uint63 u =>
+      printf "Uint63()\n" 
+  | Constr.Unsafe.Float f =>
+      printf "Float(_)\n"
+  | Constr.Unsafe.String s =>
+      printf "String(%s)\n" (Pstring.to_string s)
+  | Constr.Unsafe.Array inst arr dft arr_ty =>
+      printf "Array(%i elements)\n" (Array.length arr)
+  end.
+
+Ltac2 rec meta_break_if (out_c : constr) : unit :=
+  let rec f (c : constr) := 
+    (
+      printf "%t" c;
+      first [
+        (printf "match_side";
+        try (match! c with
+        | if ?x then _ else _ =>
+          printf "top_match_succeeded";
+          (* print_kind (kind x); *)
+          (* printf "%t" (type x); *)
+          (* match! type x with
+            | sumbool _ _ => printf "3"; destruct ($x)
+            | _ => printf "4"; destruct ($x) eqn:?
+          end *)
+          printf "%t" x;
+          destruct ($x)
+        end));
+        (printf "iter_side"; iter meta_break_if c)
+      ]
+    )
+  in f out_c.
+  
+Print Ltac2 unpack_forall.
+
+Example test : forall (x y z : bool), if x then True else False.
+let goal := Control.goal () in
+iter meta_break_if goal.
+intros x;
+let goal := Control.goal () in
+if Unsafe.occurn 54321523151 goal then
+  printf "found 2\n"
+else
+  printf "not found 2\n".
+
+printf "%t" goal.
+
+
+let goal := Control.goal () in
+let goal_val := unpack_forall goal in
+match! goal_val with
+| if ?x then _ else _ =>
+  printf "%t" x
+end.
+destruct _UNBOUND_REL_2.
+  intros x.
+  break_if.
+  - exact I.
+  - exact I.
+printf "Hello %t" g.
+match! goal with
+| [ |- context [ if @?x x1 then _ else _ ] ] => printf "test"
+end.
+  intros x.
+  break_if.
+  - exact I.
+  - exact I.
+
+
+ltac1:(break_if).
+break_if.
 
 Ltac break_if' :=
   match goal with
@@ -771,47 +950,40 @@ Ltac ffc custom :=
     ff
   ).
 
-Ltac2 array_to_fmap (arr : ('k * 'v) array) : ('k, 'v) FMap.t :=
-  Array.fold_left 
-    (fun m (kv : 'k * 'v) => FMap.add (fst kv) (snd kv) m) 
-    (FMap.empty FSet.Tags.string_tag) 
-    arr.
+Print String.
+Print string.
+From Ltac2 Require Import Ltac2 Printf Pstring Control.
 
-Ltac2 Type tactic_table :=  (string, unit -> unit) FMap.t.
-
+Print string.
+Print char.
+Print pstring.
 (* Individual flag tactics *)
 Ltac ff_flag_lia := try lia.
 Ltac ff_flag_unfold := repeat autounfold in *.
 Ltac ff_flag_apply := repeat find_apply_hyp_hyp.
 Ltac ff_flag_rw := rw_all.
-Ltac ff_flag_vm := vm_compute.
 
-Ltac2 debug_exec tac (debug : bool) : unit :=
-  if debug then force tac else ().
+(* Dispatcher for a single flag string *)
+Local Open Scope string_scope.
 
-(* Table of tactics *)
+Print pstring.
 
-Ltac2 mutable tac_table : unit -> tactic_table :=
+Ltac2 substring (start : int) (len : int) (str : string) :=
+  let s := String.sub str start len in
+  s.
+
+Local Open Scope char_scope.
+
+Ltac2 Type tactic_table :=  (string, unit -> unit) FMap.t.
+
+Ltac2 tac_table : unit -> tactic_table :=
   fun _ => array_to_fmap 
-  [| ("l", fun _ => ltac1:(ff_flag_lia));
-     ("u", fun _ => ltac1:(ff_flag_unfold));
-     ("a", fun _ =>  ltac1:(ff_flag_apply));
-     ("r", fun _ => ltac1:(ff_flag_rw));
-     ("v", fun _ => ltac1:(ff_flag_vm));
-     (* For debugging, you could layer in 'd's as needed *)
-     ("d", fun _ => ltac1:(idtac "DebugPrint"))
+  [| ("l", fun _ => try ltac1:(lia));
+     ("u", fun _ => ltac1:(repeat autounfold in *));
+     ("a", fun _ =>  repeat find_apply_hyp_hyp; ltac1:(idtac "l"));
+     ("o", fun _ => ltac1:(idtac "o"));
+     ("hh", fun _ => ltac1:(idtac "hh"))
   |].
-
-Ltac2 extend_tac_table keyval old :=
-  let (key, val) := keyval in
-  FMap.add key (fun () => val) (old ()).
-
-(* This is how you would actually enact the dynamic modification of the tactic table
-"""
-Ltac2 Set tac_table as old_tt :=
-  extend_tac_table ("t", ltac1:(test)) old_tt.
-"""
-*)
 
 Ltac2 interp_tac_char (str : string) (tab : tactic_table) : unit :=
   match FMap.find_opt str tab with
@@ -819,33 +991,176 @@ Ltac2 interp_tac_char (str : string) (tab : tactic_table) : unit :=
   | None => Control.throw (Tactic_failure (Some (Message.concat (Message.of_string "Unknown tactic:") (Message.of_string str))))
   end.
 
-Ltac2 rec interp_tac_str' (str : string) (tab : tactic_table) (debug : bool) 
-    : unit :=
+Ltac2 rec interp_tac_str' (str : string) (tab : tactic_table) : unit :=
   match str with
-  | "" => debug_exec (lazy! (printf "interp_tac_str' empty\n")) debug; ()
+  | "" => ()
   | _ =>
-    debug_exec (lazy! (printf "interp_tac_str' %s\n" str)) debug;
+    printf "interp_tac_str' %s\n" str;
     let h := String.sub str 0 1 in
     let t := String.sub str 1 (Int.sub (String.length str) 1) in
     interp_tac_char h tab;
-    interp_tac_str' t tab debug
+    interp_tac_str' t tab
   end.
 
-Ltac2 interp_tac_str (str : string) (debug : bool) : unit :=
+Ltac2 interp_tac_str (str : string) : unit :=
   let table := tac_table () in
-  debug_exec (lazy! (printf "interp_tac_str %s\n" str)) debug;
-  interp_tac_str' str table debug.
+  printf "interp_tac_str %s\n" str;
+  interp_tac_str' str table.
 
-Ltac2 ff_core flags :=
+Import Ascii.
+Example test : True.
+interp_tac_str "hello".
+let s1 := interp_char "h" in
+let s2 := interp_char "e" in
+(* let s3 := interp_char s1 in *)
+(* let str := String.app s1 s2 in *)
+s1; s2.
+printf "%s" str.
+printf "%s" (interp_char (interp_char "h")).
+
+(* Test function for the above *)
+
+Ltac2 test (s : string) :=
+  match s with
+  | char :: _ => Control.throw Not_found
+  | "h" => Control.throw No_value
+  | "e" => Control.throw Match_failure
+  | "l" => Control.throw Not_found
+  | "o" => Control.throw Not_focussed
+  | _ => Control.throw Assertion_failure
+  end.
+
+Example test : True.
+test " ".
+
+Ltac2 coq_string_to_ltac_string constr:(string) :=
+  let s := String.to_list constr in
+  let rec loop s acc :=
+    match s with
+    | [] => acc
+    | c :: s' => loop s' (acc ++ [c])
+    end
+  in
+  loop s [].
+
+(* Printf format string *)
+
+Print Ltac2 substring.
+
+Ltac2 ff_dispatch_flag flag :=
+  lazy_match! flag with
+  | "l" => ltac1:(ff_flag_lia)
+  | "u" => ltac1:(ff_flag_unfold)
+  | "a" => ltac1:(ff_flag_apply)
+  | "r" => ltac1:(ff_flag_rw)
+  | _ => Control.zero (Tactic_failure (Some (Message.concat (Message.of_string "Unknown flag for 'ffc':") (Message.of_string flag))))
+  end.
+
+(* Main driver: applies ff; <custom>; ff repeatedly *)
+Ltac flag_caller flags :=
+  lazymatch flags with
+  | (?flag :: ?rest) =>
+      ff_dispatch_flag flag;
+      flag_caller rest
+  | nil => idtac
+  end.
+
+Example test : True.
+printf "%s" (substring 0 1 "hello").
+
+(* Find the index of a character in a string *)
+Ltac print_chars_on_new_line str :=
+  let s := eval cbv in str in
+  let rec loop s :=
+    lazymatch s with
+    | "" => idtac
+    | _ =>
+      let head := substring 0 (index " " s) s in
+      let tail := substring (1 + index " " s) (String.length s - 1 - index " " s) s in
+      idtac head;
+      loop tail
+    end
+  in
+  match s with
+  | "" => idtac
+  | _ =>
+    lazymatch index " " s with
+    | 0 => idtac(s)
+    | _ =>
+      loop s
+    end
+  end.
+
+(* Split a string by space into a list of strings *)
+Ltac ffc_parse_flags str :=
+  let s := eval cbv in str in
+  let rec loop s acc :=
+    lazymatch s with
+    | "" => acc
+    | _ =>
+      let head := substring 0 (index " " s) s in
+      let tail := substring (1 + index " " s) (String.length s - 1 - index " " s) s in
+      loop tail (acc ++ [head])
+    end
+  in
+  match s with
+  | "" => constr:(@nil string)
+  | _ =>
+    lazymatch index " " s with
+    | 0 => constr:([s])
+    | _ =>
+      let flags := loop s (@nil string) in
+      flags
+    end
+  end.
+
+Ltac ff_core flags :=
   repeat (
-    ltac1:(ff);
-    interp_tac_str flags false;
-    ltac1:(ff)
+    ff;
+    flag_caller flags;
+    ff
   ).
 
 (* Convenience notation: ffc with flags *)
-Ltac2 ff flags :=
-  ff_core flags.
+Tactic Notation "ff" "with" constr_list(flags) :=
+  let parsed := eval cbv in flags in
+  ff_core parsed.
+
+Ltac ffu := ff with ["u"].
+Ltac ffl := ff with ["l"].
+Ltac ffa := ff with ["a"].
+Ltac ffr := ff with ["r"].
+
+(* Ltac ffl :=
+  repeat (ff;
+    try lia;
+  ff).
+
+Ltac ffu :=
+  repeat (ff;
+    repeat autounfold in *;
+  ff).
+
+Ltac ffa :=
+  repeat (ff;
+    repeat find_apply_hyp_hyp;
+    ff).
+
+Ltac ffr :=
+  repeat (ff;
+    rw_all;
+    ff).
+
+Tactic Notation "ffc" "using" tactic2(tac) :=
+  repeat (ff;
+    tac;
+    ff). 
+
+Tactic Notation "ffa" "using" tactic2(tac) :=
+  repeat (ff;
+    repeat find_apply_hyp_hyp;
+    tac;
+    ff). *)
 
 Ltac target_find_rewrite H :=
   lazymatch type of H with
@@ -875,31 +1190,3 @@ Ltac target_break_match H :=
     try simple congruence 1; try target_break_match Hbm;
     try target_break_match H
   end.
-
-Ltac2 pose_proof (x : constr) (y : ident option) :=
-  match y with
-  | None => ltac1:(x |- pose proof x) (Ltac1.of_constr x)
-  | Some yval =>
-    ltac1:(x y |- pose proof x as y) (Ltac1.of_constr x) (Ltac1.of_ident yval)
-  end.
-
-Ltac2 Notation "pose" "proof" 
-  x(constr)
-  y(opt(seq("as", ident))) :=
-  pose_proof x y.
-
-Ltac2 Notation "pp"
-  x(constr)
-  y(opt(seq("as", ident))) :=
-  pose_proof x y.
-
-Ltac2 Notation "pps" 
-  xs(list0(constr, ",")) :=
-  let rec loop xs :=
-    match xs with
-    | [] => ()
-    | x :: xs' =>
-      pose_proof x None;
-      loop xs'
-    end in
-  loop xs.

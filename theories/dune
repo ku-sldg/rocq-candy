@@ -4,7 +4,6 @@
 (coq.theory
  (name RocqCandy)
  (package rocq-candy)
- (theories ExtLib)
- 
- (synopsis "Snippets of nice and useful Rocq code utilized by the KU-SLDG Lab"))
-
+ (theories ExtLib Stdlib Ltac2)
+ (synopsis
+  "Snippets of nice and useful Rocq code utilized by the KU-SLDG Lab"))

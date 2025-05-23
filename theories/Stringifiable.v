@@ -1,9 +1,7 @@
-From Coq Require Export String.
+From Stdlib Require Export String.
 Local Open Scope string_scope.
 From RocqCandy Require Import Tactics ResultMonad.
 Import Result.Notation.
-(* From ExtLib Require Export Monad EitherMonad MonadExc. *)
-(* Import MonadNotation. *)
 
 Class Stringifiable (A : Type) :=
   {
