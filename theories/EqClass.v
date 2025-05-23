@@ -26,7 +26,7 @@ Theorem eqb_neq : forall {A} `{EqClass A} a b,
   eqb a b = false <-> a <> b.
 Proof.
   pps @eqb_refl, @eqb_eq.
-  ff "r"; destruct (eqb a b) eqn:E; ff "r".
+  ff r; destruct (eqb a b) eqn:E; ff r.
 Qed.
 
 Ltac destEq t1 t2 :=
@@ -75,8 +75,7 @@ Ltac eq_crush :=
 Ltac2 Notation "eq_crush" :=
   ltac1:(eq_crush).
 
-Ltac2 Set tac_table as old_tt :=
-  fun () => extend_tac_table ("e", ltac1:(eq_crush)) old_tt.
+Ltac2 e := fun () => eq_crush.
 
 Section Theories.
   Context {A : Type}.
@@ -84,13 +83,13 @@ Section Theories.
 
   Theorem EqClass_impl_DecEq: forall (x y : A), {x = y} + {x <> y}.
   Proof.
-    ff "e".
+    ff e.
   Qed.
 
   Theorem eqb_symm : forall a1 a2,
     eqb a1 a2 = eqb a2 a1.
   Proof.
-    ff "e".
+    ff e.
   Qed.
 
   Theorem eqb_transitive : forall a1 a2 a3,
@@ -98,7 +97,7 @@ Section Theories.
     eqb a2 a3 = true ->
     eqb a1 a3 = true.
   Proof.
-    ff "e".
+    ff e.
   Qed.
 
 End Theories.
@@ -118,7 +117,7 @@ Theorem list_eqb_eq : forall {A : Type} (eqbA : A -> A -> bool),
   (forall a1 a2, In a1 l1 -> eqbA a1 a2 = true <-> a1 = a2) ->
   forall (l2 : list A), list_eqb_eqb eqbA l1 l2 = true <-> l1 = l2.
 Proof.
-  induction l1; destruct l2; split; ff "er".
+  induction l1; destruct l2; split; ff e,r.
 Qed.
 
 Fixpoint general_list_eq_class_eqb {A : Type} `{H : EqClass A} (l1 l2 : list A) : bool :=
@@ -131,13 +130,13 @@ Fixpoint general_list_eq_class_eqb {A : Type} `{H : EqClass A} (l1 l2 : list A) 
 Theorem general_list_eqb_eq : forall {A : Type} `{H : EqClass A},
   forall (a1 a2 : list A), general_list_eq_class_eqb a1 a2 = true <-> a1 = a2.
 Proof.
-  induction a1; destruct a2; split; ff "er".
+  induction a1; destruct a2; split; ff e,r.
 Qed.
 
 Lemma nat_eqb_eq : forall n1 n2 : nat,
   Nat.eqb n1 n2 = true <-> n1 = n2.
 Proof.
-  induction n1; destruct n2; ff "er".
+  induction n1; destruct n2; ff e,r.
 Qed.
 
 (* Instances *)
@@ -164,7 +163,7 @@ Global Instance EqClass_prod {A B:Type} `{EqClass A, EqClass B} : EqClass (A*B).
 ref (Build_EqClass _ 
   (fun '(a1,b1) '(a2,b2) => andb (eqb a1 a2) (eqb b1 b2)) 
   (fun '(a1, b1) '(a2, b2) => _)).
-ff "e".
+ff e.
 Defined.
 
 Global Instance EqClass_impl_EqDec (A : Type) `{H : EqClass A} : EqDec A eq.

@@ -763,89 +763,37 @@ Ltac ff :=
     )
   ).
 
-(* Base tactic that all others use *)
-Ltac ffc custom :=
-  repeat (
-    ff;
-    custom;
-    ff
-  ).
+Ltac2 l := fun _ => ltac1:(try lia).
+Ltac2 Notation "l" := l.
+Ltac2 u := fun _ => ltac1:(repeat autounfold in *).
+Ltac2 Notation "u" := u.
+Ltac2 a := fun _ => ltac1:(repeat find_apply_hyp_hyp).
+Ltac2 Notation "a" := a.
+Ltac2 r := fun _ => ltac1:(rw_all).
+Ltac2 Notation "r" := r.
+Ltac2 v := fun _ => ltac1:(vm_compute).
+Ltac2 Notation "v" := v.
+Ltac2 d := fun _ => ltac1:(idtac "DebugPrint").
+Ltac2 Notation "d" := d.
 
-Ltac2 array_to_fmap (arr : ('k * 'v) array) : ('k, 'v) FMap.t :=
-  Array.fold_left 
-    (fun m (kv : 'k * 'v) => FMap.add (fst kv) (snd kv) m) 
-    (FMap.empty FSet.Tags.string_tag) 
-    arr.
-
-Ltac2 Type tactic_table :=  (string, unit -> unit) FMap.t.
-
-(* Individual flag tactics *)
-Ltac ff_flag_lia := try lia.
-Ltac ff_flag_unfold := repeat autounfold in *.
-Ltac ff_flag_apply := repeat find_apply_hyp_hyp.
-Ltac ff_flag_rw := rw_all.
-Ltac ff_flag_vm := vm_compute.
-
-Ltac2 debug_exec tac (debug : bool) : unit :=
-  if debug then force tac else ().
-
-(* Table of tactics *)
-
-Ltac2 mutable tac_table : unit -> tactic_table :=
-  fun _ => array_to_fmap 
-  [| ("l", fun _ => ltac1:(ff_flag_lia));
-     ("u", fun _ => ltac1:(ff_flag_unfold));
-     ("a", fun _ =>  ltac1:(ff_flag_apply));
-     ("r", fun _ => ltac1:(ff_flag_rw));
-     ("v", fun _ => ltac1:(ff_flag_vm));
-     (* For debugging, you could layer in 'd's as needed *)
-     ("d", fun _ => ltac1:(idtac "DebugPrint"))
-  |].
-
-Ltac2 extend_tac_table keyval old :=
-  let (key, val) := keyval in
-  FMap.add key (fun () => val) (old ()).
-
-(* This is how you would actually enact the dynamic modification of the tactic table
-"""
-Ltac2 Set tac_table as old_tt :=
-  extend_tac_table ("t", ltac1:(test)) old_tt.
-"""
-*)
-
-Ltac2 interp_tac_char (str : string) (tab : tactic_table) : unit :=
-  match FMap.find_opt str tab with
-  | Some f => f ()
-  | None => Control.throw (Tactic_failure (Some (Message.concat (Message.of_string "Unknown tactic:") (Message.of_string str))))
+Ltac2 invoke_list tac_list :=
+  match tac_list with
+  | None => ()
+  | Some tacs => List.fold_left (fun _ x => x ()) () tacs
   end.
 
-Ltac2 rec interp_tac_str' (str : string) (tab : tactic_table) (debug : bool) 
-    : unit :=
-  match str with
-  | "" => debug_exec (lazy! (printf "interp_tac_str' empty\n")) debug; ()
-  | _ =>
-    debug_exec (lazy! (printf "interp_tac_str' %s\n" str)) debug;
-    let h := String.sub str 0 1 in
-    let t := String.sub str 1 (Int.sub (String.length str) 1) in
-    interp_tac_char h tab;
-    interp_tac_str' t tab debug
-  end.
+(* [interp_tac_str] interprets a string as a sequence of tactics. *)
 
-Ltac2 interp_tac_str (str : string) (debug : bool) : unit :=
-  let table := tac_table () in
-  debug_exec (lazy! (printf "interp_tac_str %s\n" str)) debug;
-  interp_tac_str' str table debug.
-
-Ltac2 ff_core flags :=
+Ltac2 ff_core tac_list :=
   repeat (
     ltac1:(ff);
-    interp_tac_str flags false;
+    invoke_list tac_list;
     ltac1:(ff)
   ).
 
-(* Convenience notation: ffc with flags *)
-Ltac2 ff flags :=
-  ff_core flags.
+Ltac2 Notation "ff" 
+  tacs(opt(list0(tactic(0), ","))) :=
+  ff_core tacs.
 
 Ltac target_find_rewrite H :=
   lazymatch type of H with
@@ -895,11 +843,4 @@ Ltac2 Notation "pp"
 
 Ltac2 Notation "pps" 
   xs(list0(constr, ",")) :=
-  let rec loop xs :=
-    match xs with
-    | [] => ()
-    | x :: xs' =>
-      pose_proof x None;
-      loop xs'
-    end in
-  loop xs.
+  List.fold_left (fun _ x => pose_proof x None) () xs.
