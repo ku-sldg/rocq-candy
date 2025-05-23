@@ -719,34 +719,32 @@ Ltac rw_all :=
     try simple congruence 1
   ); eauto.
 
+Ltac2 tac_list_thunk tac_list :=
+  match tac_list with
+  | None => fun () => ()
+  | Some tacs => 
+      List.fold_left 
+        (fun acc x => (fun next => acc (); x (); next)) 
+        (fun () => ()) 
+        tacs
+  end.
+
 (* Simplification hammer.  Used at beginning of many proofs in this 
    development.  Conservative simplification, break matches, 
    invert on resulting goals *)
-Ltac ff :=
+Ltac2 rec ff tac :=
   repeat (
-    try unfold not in *;
+    ltac1:(try unfold not in *;
     intros;
     (* Break up logical statements *)
     repeat break_and;
     repeat break_exists;
-    try break_iff;
+    try break_iff);
     (* 
     This is proving too computationly expensive to do in general
-
-    (* We only break up goal ANDs f we <= the total number of goals *)
-    try (
-      let num := numgoals in
-      break_and_goal; ff; 
-      let num2 := numgoals in
-      guard num2 <= num);
     *)
-    (* We only break up hyp ORs if we <= the total number of goals *)
-    try (
-      let num := numgoals in
-      break_or_hyp; ff; 
-      let num2 := numgoals in
-      guard num2 <= num);
-    repeat (
+    try (tac ());
+    ltac1:(repeat (
       simpl in *;
       repeat find_rewrite;
       try break_match;
@@ -760,7 +758,13 @@ Ltac ff :=
       try congruence
       (* Too expensive in general
       ; try solve_by_inversion *)
-    )
+    ));
+    (* We only break up hyp ORs if we <= the total number of goals *)
+    try (
+      let num := numgoals () in
+      ltac1:(break_or_hyp); ff tac; 
+      ltac1:(num |- let num2 := numgoals in
+      guard num2 <= num) (Ltac1.of_int num))
   ).
 
 Ltac2 l := fun _ => ltac1:(try lia).
@@ -776,19 +780,14 @@ Ltac2 Notation "v" := v.
 Ltac2 d := fun _ => ltac1:(idtac "DebugPrint").
 Ltac2 Notation "d" := d.
 
-Ltac2 invoke_list tac_list :=
-  match tac_list with
-  | None => ()
-  | Some tacs => List.fold_left (fun _ x => x ()) () tacs
-  end.
-
 (* [interp_tac_str] interprets a string as a sequence of tactics. *)
 
 Ltac2 ff_core tac_list :=
+  let tac := tac_list_thunk tac_list in
   repeat (
-    ltac1:(ff);
-    invoke_list tac_list;
-    ltac1:(ff)
+    ff tac;
+    tac ();
+    ff tac
   ).
 
 Ltac2 Notation "ff" 
