@@ -7,22 +7,36 @@ Import ListNotations.
 From ExtLib Require Export Tactics BoolTac.
 
 From Ltac2 Require Export Ltac2 Printf Pstring Notations.
-From Ltac2 Require Import Bool Lazy Control Array Lazy FMap.
+From Ltac2 Require Export Bool Lazy Array Lazy FMap Fresh Control.
 
 (** [clean] removes any hypothesis of the shape [X = X]. *)
-Ltac clean :=
-  match goal with
-    | [ H : ?X = ?X |- _ ] => clear H
-  end.
+Ltac2 Notation "clean" :=
+  repeat (
+    match! goal with
+    | [ h : ?_x = ?_x |- _ ] => clear $h
+    end
+  ).
+Ltac2 Notation clean := clean.
+
+Example test_clean : forall A (x : A), x = x -> True.
+Proof.
+  intros.
+  clean.
+  apply I.
+Qed.
 
 (** [subst_max] performs as many [subst] as possible, clearing all
     trivial equalities from the context. *)
-Ltac subst_max :=
-  repeat clean;
-  repeat match goal with
-           | [ H : ?X = _ |- _ ]  => subst X
-           | [H : _ = ?X |- _] => subst X
-         end.
+Ltac2 Notation subst_max :=
+  clean; repeat subst; clean. 
+  (* Note: ltac2 "subst" calls "subst_all", so hopefully it truly replicates this functionality *)
+
+Example test_subst_max : forall A (x y z : A), x = x -> x = y -> y = z -> x = z.
+Proof.
+  intros.
+  subst_max.
+  reflexivity.
+Qed.
 
 (** The Coq [inversion] tries to preserve your context by only adding
     new equalities, and keeping the inverted hypothesis.  Often, you
@@ -32,335 +46,471 @@ Ltac subst_max :=
     inverted hypothesis.  Sometimes, you also want to perform
     post-simplification.  [invcs] extends [invc] and tries to simplify
     what it can. *)
-Ltac inv H := inversion H; subst_max.
-Ltac invc H := inv H; clear H.
-Ltac invcs H := invc H; simpl in *.
+Ltac2 Notation "inv"
+  arg(destruction_arg) 
+  pat(opt(seq("as", intropattern)))
+  ids(opt(seq("in", list1(ident)))) :=
+  Std.inversion Std.FullInversion arg pat ids;
+  subst_max.
 
-(** [inv_prop] finds the first hypothesis including the term [P] and uses [inv]
-    to invert it. *)
-Ltac inv_prop P :=
-  match goal with
-  | [ H : context[P] |- _] =>
-    inv H
+Example test_inv : forall A (x y z : A), x = y -> y = z -> x = z.
+Proof.
+  intros.
+  inv H.
+  reflexivity.
+Qed.
+
+Ltac2 Notation "invc"
+  arg(destruction_arg) 
+  pat(opt(seq("as", intropattern)))
+  ids(opt(seq("in", list1(ident)))) :=
+  Std.inversion Std.FullInversion arg pat ids;
+  subst_max; 
+  match arg with
+  | Std.ElimOnIdent h => clear $h
+  | _ => ()
   end.
 
-(** [inv_prop] finds the first hypothesis including the term [P] and uses [invc]
-    to invert it. *)
-Ltac invc_prop P :=
-  match goal with
-  | [ H : context[P] |- _] =>
-    invc H
-  end.
-
-(** [inv_prop] finds the first hypothesis including the term [P] and uses
-    [invcs] to invert it. *)
-Ltac invcs_prop P :=
-  match goal with
-  | [ H : context[P] |- _] =>
-    invcs H
-  end.
+Ltac2 Notation "invcs"
+  arg(destruction_arg) 
+  pat(opt(seq("as", intropattern)))
+  ids(opt(seq("in", list1(ident)))) :=
+  Std.inversion Std.FullInversion arg pat ids;
+  subst_max;
+  match arg with
+  | Std.ElimOnIdent h => clear $h
+  | _ => ()
+  end;
+   simpl in *.
 
 (** [break_if] finds instances of [if _ then _ else _] in your goal or
     context, and destructs the discriminee, while retaining the
     information about the discriminee's value leading to the branch
     being taken. *)
-Ltac break_if :=
-  match goal with
-    | [ |- context [ if ?X then _ else _ ] ] =>
-      match type of X with
-        | sumbool _ _ => destruct X
-        | _ => destruct X eqn:?
-      end
-    | [ H : context [ if ?X then _ else _ ] |- _] =>
-      match type of X with
-        | sumbool _ _ => destruct X
-        | _ => destruct X eqn:?
-      end
+Ltac2 Notation "break_if" :=
+  match! goal with
+  | [ |- context [ if ?x then _ else _ ] ] =>
+    match! Constr.type x with
+    | sumbool _ _ => destruct ($x)
+    | _ => destruct ($x) eqn:?
+    end
+  | [ _h : context [ if ?x then _ else _ ] |- _] =>
+    match! Constr.type x with
+    | sumbool _ _ => destruct ($x)
+    | _ => destruct ($x) eqn:?
+    end
   end.
+Ltac2 Notation break_if := break_if.
 
-Ltac break_if' :=
-  match goal with
-    | [ |- context [ if ?X then _ else _ ] ] =>
-      match type of X with
-        (*| sumbool _ _ => destruct X*)
-        | _ => destruct X eqn:?
-      end
-    | [ H : context [ if ?X then _ else _ ] |- _] =>
-      match type of X with
-        | sumbool _ _ => destruct X
-        | _ => destruct X eqn:?
-      end
-  end.
+Example test_break_if {A : Type} (f : A -> A -> bool) : forall x y z : A,
+  (if f x y then (if f y z then z else z) else (if f z x then z else z)) = z.
+Proof.
+  intros.
+  repeat (break_if; eauto).
+Qed.
+
+Example test_break_if2 {A : Type} (f : A -> A -> bool) : forall x y z : A,
+  (if f x y then (if f y z then z else z) else (if f z x then z else z)) = y -> y = z.
+Proof.
+  intros.
+  repeat (break_if; eauto).
+Qed.
 
 (** [break_match_hyp] looks for a [match] construct in some
     hypothesis, and destructs the discriminee, while retaining the
     information about the discriminee's value leading to the branch
     being taken. *)
-Ltac break_match_hyp :=
-  match goal with
-    | [ H : context [ match ?X with _ => _ end ] |- _] =>
-      match type of X with
-        | sumbool _ _ => destruct X
-        | _ => destruct X eqn:?
-      end
+Ltac2 Notation "break_match_hyp" :=
+  match! goal with
+  | [ _h : context [ match ?x with _ => _ end ] |- _] =>
+    match! Constr.type x with
+    | sumbool _ _ => destruct $x
+    | _ => destruct $x eqn:?
+    end
   end.
+
+Ltac2 Notation break_match_hyp := break_match_hyp.
+
+Example test_break_match_hyp : forall x y z : nat,
+  (match x with
+   | 0 => (match y with
+           | 0 => z
+           | S _ => z
+         end)
+   | S _ => z
+   end) = y -> y = z.
+Proof.
+  intros.
+  repeat (break_match_hyp; eauto).
+Qed.
 
 (** [break_match_goal] looks for a [match] construct in your goal, and
     destructs the discriminee, while retaining the information about
     the discriminee's value leading to the branch being taken. *)
-Ltac break_match_goal :=
-  match goal with
-    | [ |- context [ match ?X with _ => _ end ] ] =>
-      match type of X with
-        | sumbool _ _ => destruct X
-        | _ => destruct X eqn:?
+Ltac2 Notation "break_match_goal" :=
+  match! goal with
+    | [ |- context [ match ?x with _ => _ end ] ] =>
+      match! Constr.type x with
+        | sumbool _ _ => destruct $x
+        | _ => destruct $x eqn:?
       end
   end.
 
+Ltac2 Notation break_match_goal := break_match_goal.
+
+Example test_break_match_goal : forall x y z : nat,
+  (match x with
+   | 0 => (match y with
+           | 0 => z
+           | S _ => z
+         end)
+   | S _ => z
+   end) = y -> y = z.
+Proof.
+  intros x y z.
+  repeat (break_match_goal; eauto).
+Qed.
+
+Ltac2 oneOf tac_list :=
+  progress (List.fold_left 
+    (fun acc x => (fun next => acc (); try (x ()); next)) 
+    (fun () => ()) 
+    tac_list).
+
+Ltac2 Notation "oneOf" 
+  "[" tacs(list0(thunk(tactic(6)), "|")) "]" :=
+  (* Attempts to run all of the tactics, and ensures that at least one of them succeeded *)
+  oneOf tacs.
+
+(* 
+Example test_oneOf : True /\ True /\ True.
+Proof.
+  (* You can't completely fail *)
+  Fail oneOf [ printf "1"; fail | printf "2"; fail ].
+  (* Progress from other branchs is not lost *)
+  oneOf [ printf "1"; fail | printf "2"; split | apply I ].
+  (* Does not continue past completed goals *)
+  oneOf [ printf "1"; fail | split | apply I | printf "3" ].
+Qed.
+*)
+
 (** [break_match] breaks a match, either in a hypothesis or in your
     goal. *)
-Ltac break_match := break_match_goal || break_match_hyp.
+Ltac2 Notation "break_match" := 
+  oneOf [ break_match_goal | break_match_hyp ].
 
-Ltac break_match_hyp_rec H :=
-  match goal with
-  | [ H : context [ match ?X with _ => _ end ] |- _] =>
-    match type of X with
-    | sumbool _ _ => destruct X
-    | _ => destruct X eqn:?; repeat break_match_hyp_rec
-    end
+Ltac2 rec break_match_hyp_rec (hyp : ident) :=
+  match! (Constr.type (Control.hyp hyp)) with
+  | context [ match ?x with _ => _ end ] =>
+    let h1 := in_goal hyp in
+    destruct $x eqn:$h1;
+    (* First, try to continue on the current hyp *)
+    try (break_match_hyp_rec hyp);
+    try (break_match_hyp_rec h1)
   end.
+
+Ltac2 Notation "break_match_hyp_rec"
+  hyp(ident) :=
+  break_match_hyp_rec hyp.
+
+Example test_break_match_hyp_rec : forall x y z : nat,
+  (match x with
+  | 0 => (match y with
+          | 0 => z
+          | S _ => z
+        end)
+  | S _ => z
+  end) = y -> y = z.
+Proof.
+  intros x y z H.
+  break_match_hyp_rec H; eauto.
+Qed.
 
 (** [break_inner_match' t] tries to destruct the innermost [match] it
     find in [t]. *)
-Ltac break_inner_match' t :=
- match t with
-   | context[match ?X with _ => _ end] =>
-     break_inner_match' X || destruct X eqn:?
-   | _ => destruct t eqn:?
- end.
+Ltac2 rec break_inner_match' (body : constr) :=
+  match! body with
+  | context [ match ?x with _ => _ end ] =>
+    try (first [ 
+      break_inner_match' x |
+      destruct $x eqn:?
+    ])
+  | _ => destruct $body eqn:?
+  end.
+
+Example test_break_inner_match' : forall y z : nat,
+  (match (match y with
+          | 0 => z
+          | S _ => z
+        end) with
+  | 0 => z
+  | S _ => z
+  end) = y -> y = z.
+Proof.
+  intros y z H.
+  break_inner_match' (Constr.type 'H);
+  eauto;
+  try (break_inner_match' (Constr.type 'H); eauto).
+Qed.
 
 (** [break_inner_match_goal] tries to destruct the innermost [match] it
     find in your goal. *)
-Ltac break_inner_match_goal :=
- match goal with
-   | [ |- context[match ?X with _ => _ end] ] =>
-     break_inner_match' X
+Ltac2 Notation "break_inner_match_goal" :=
+ match! goal with
+  | [ |- context[match ?x with _ => _ end] ] =>
+    break_inner_match' x
  end.
+
+Ltac2 Notation break_inner_match_goal := break_inner_match_goal.
+
+Example test_break_inner_match_goal : 
+  match (match 1 with
+        | 0 => 2
+        | S _ => 3
+        end) with
+  | 0 => 2
+  | S _ => 3
+  end = 1 -> 1 = 3.
+Proof.
+  break_inner_match_goal; eauto.
+Qed.
 
 (** [break_inner_match_hyp] tries to destruct the innermost [match] it
     find in a hypothesis. *)
-Ltac break_inner_match_hyp :=
- match goal with
-   | [ H : context[match ?X with _ => _ end] |- _ ] =>
-     break_inner_match' X
- end.
+Ltac2 Notation "break_inner_match_hyp" :=
+  match! goal with
+  | [ h : context[match ?_x with _ => _ end] |- _ ] =>
+    break_inner_match' (Constr.type (Control.hyp h))
+  end.
+
+Ltac2 Notation break_inner_match_hyp := 
+  break_inner_match_hyp.
+
+Example test_break_inner_match_hyp :
+    match (match 1 with
+        | 0 => 2
+        | S _ => 3
+        end) with
+  | 0 => 2
+  | S _ => 3
+  end = 1 -> 1 = 3.
+Proof.
+  intros H.
+  break_inner_match_hyp; eauto.
+Qed.
 
 (** [break_inner_match] tries to destruct the innermost [match] it
     find in your goal or a hypothesis. *)
-Ltac break_inner_match := break_inner_match_goal || break_inner_match_hyp.
+Ltac2 Notation break_inner_match := 
+  oneOf [ break_inner_match_goal | break_inner_match_hyp ].
 
 (** [break_exists] destructs an [exists] in your context. *)
-Ltac break_exists :=
-  repeat match goal with
-           | [H : exists _, _ |- _ ] => destruct H
-         end.
+Ltac2 Notation "break_exists" :=
+  match! goal with
+  | [ h : exists _ , _ |- _ ] =>
+    let destVal := Control.hyp h in
+    destruct $destVal
+  end.
 
-(** [break_exists_exists] destructs an [exists] in your context, and uses
-    the witness found as witness for your current goal. *)
-Ltac break_exists_exists :=
-  repeat match goal with
-           | H:exists _, _ |- _ =>
-             let x := fresh "x" in
-             destruct H as [x]; exists x
-         end.
+Ltac2 Notation break_exists := break_exists.
+
+Example test_break_exists : forall y,
+  (exists x1 x2, x1 = S y + x2) ->
+  (exists x, x = S (S y)).
+Proof.
+  intros.
+  repeat break_exists.
+  eauto.
+Qed.
 
 (** [break_and] destructs all conjunctions in context. *)
-Ltac break_and :=
-  repeat match goal with
-           | [H : _ /\ _ |- _ ] => destruct H
-         end.
+Ltac2 Notation "break_and" :=
+  repeat (
+    match! goal with
+    | [ h : _ /\ _ |- _ ] => 
+      let destVal := Control.hyp h in
+      destruct $destVal
+    end
+  ).
 
-(** [break_and_goal] splits a conjunctive goal into one goal per
-    conjunct.  In simpler terms, it splits a goal of the shape [G1 /\
-    ... /\ Gn] into [n] goals [G1], ..., [Gn]. *)
-Ltac break_and_goal :=
-  match goal with
-  | [ |- _ /\ _ ] => split
+Ltac2 Notation break_and := break_and.
+
+(* Ltac2 Notation break_and := break_and. *)
+Example test_break_and {A} : forall x y z : A,
+  (x = y /\ y = z) ->
+  x = z.
+Proof.
+  intros; break_and; subst_max; eauto.
+Qed.
+
+Ltac2 rew_in
+  (h1 : ident)
+  (h2 : ident)
+  (tac : (unit -> unit) option) :=
+  let h1 := Control.hyp h1 in
+  match tac with
+  | None => 
+    rewrite $h1 in $h2
+  | Some t => 
+    rewrite $h1 in $h2 by (t ())
   end.
 
-(** [solve_by_inverison' tac] succeeds if it can solve your goal by
-    inverting a hypothesis and then running [tac]. *)
-Ltac solve_by_inversion' tac :=
-  match goal with
-    | [H : _ |- _] => solve [inv H; tac]
-  end.
+(* This tactic is basically used just to restore the simpler behavior of rewriting where you pass 2 idents. It cover's up some of the necessary anti-quotations that Ltac2 requires *)
+Ltac2 Notation "rew_in"
+  h1(ident) 
+  h2(ident) 
+  tac(opt(seq("by", thunk(tactic)))) :=
+  rew_in h1 h2 tac.
 
-(** [solve_by_inverison] succeeds if it can solve your goal by
-    inverting a hypothesis and then running [auto]. *)
-Ltac solve_by_inversion := solve_by_inversion' auto.
+(** [rew_in H H'] rewrites [H] in [H']. *)
 
-(** TODO: document this. *)
-Ltac apply_fun f H:=
-  match type of H with
-    | ?X = ?Y => assert (f X = f Y)
-  end.
-
-(** [conclude H tac] assumes [H] is of the form [A -> B] and
-    specializes it into [B] if it successfully proves [A] using
-    [tac]. *)
-Ltac conclude H tac :=
-  (let H' := fresh in
-   match type of H with
-     | ?P -> _ => assert P as H' by (tac)
-   end; specialize (H H'); clear H').
-
-(** [concludes] specializes all implication hypotheses if it can prove
-    their premise using [auto]. *)
-Ltac concludes :=
-  match goal with
-    | [ H : ?P -> _ |- _ ] => conclude H auto
-  end.
-
-(** [forward H] performs forward reasoning in hypothesis [H] of the
-    shape [A -> B] by asserting [A] to be proven.  You can
-    subsequently call [concludes] to specialize [H] to [B]. *)
-Ltac forward H :=
-  let H' := fresh in
-   match type of H with
-     | ?P -> _ => assert P as H'
-   end.
-
-(** [forwards] performs forward reasoning in all hypotheses. *)
-Ltac forwards :=
-  match goal with
-    | [ H : ?P -> _ |- _ ] => forward H
-  end.
-
-(** [find_elim_prop] finds a hypothesis that includes [P] and eliminates it with
-    the built-in [elim] tactic. *)
-Ltac find_elim_prop P :=
-  match goal with
-  | [ H : context [ P ] |- _ ] =>
-    elim H
-  end.
-
-(** [find_elim_prop] finds a hypothesis that includes [P] and eliminates it with
-    the built-in [eelim] tactic. *)
-Ltac find_eelim_prop P :=
-  match goal with
-  | [ H : context [ P ] |- _ ] =>
-    eelim H
-  end.
-
-(** [find_contradiction] solves a goal if two equalities are
-    incompatible. *)
-Ltac find_contradiction :=
-  match goal with
-    | [ H : ?X = _, H' : ?X = _ |- _ ] => rewrite H in H'; solve_by_inversion
-  end.
-
+Example test_rew_in : forall x y z : nat,
+  x = y -> (x = y -> y = z) -> ~ (x = z) -> False.
+Proof.
+  intros; rew_in H0 H by eauto; eauto.
+Qed.
+  
 (** [find_rewrite] performs a [rewrite] with some hypothesis in some
     other hypothesis. *)
-Ltac find_rewrite :=
+Ltac2 Notation "find_rewrite" :=
   subst_max;
-  match goal with
-  | [ H : ?X _ _ _ _ = _, H' : ?X _ _ _ _ = _ |- _ ] => rewrite H in H'
-  | [ H : ?X = _, H' : ?X = _ |- _ ] => rewrite H in H'
-  | [ H : ?X = _, H' : context [ ?X ] |- _ ] => rewrite H in H'
-  | [ H : ?X = _ |- context [ ?X ] ] => rewrite H
+  match! goal with
+  | [ h : ?_x = _ |- context [ ?_x ] ] => 
+    let h := Control.hyp h in
+    rewrite $h
+  | [ h : ?_x = _, h' : context [ ?_x ] |- _ ] => 
+    rew_in $h $h'
+  | [ h : ?_x = _, h' : ?_x = _ |- _ ] => 
+    printf "unique case! please report"; 
+    rew_in $h $h'
+  | [ h : ?_x _ = _, h' : ?_x _ = _ |- _ ] => 
+    rew_in $h $h'
+  | [ h : ?_x _ _ = _, h' : ?_x _ _ = _ |- _ ] => 
+    rew_in $h $h'
+  | [ h : ?_x _ _ _ = _, h' : ?_x _ _ _ = _ |- _ ] => 
+    rew_in $h $h'
+  | [ h : ?_x _ _ _ _ = _, h' : ?_x _ _ _ _ = _ |- _ ] => 
+    rew_in $h $h'
   end.
 
+Ltac2 Notation find_rewrite := find_rewrite.
+
 (** [find_rewrite_lem lem] rewrites with [lem] in some hypothesis. *)
-Ltac find_rewrite_lem lem :=
-  match goal with
-    | [ H : _ |- _ ] =>
-      rewrite lem in H; [idtac]
+Ltac2 Notation "find_rewrite_lem" 
+  lem(ident) :=
+  match! goal with
+  | [ h : _ |- _ ] =>
+    (rew_in $lem $h) > [()]
   end.
 
 (** [find_rewrite_lem_by lem t] rewrites with [lem] in some
     hypothesis, discharging the generated obligations with [t]. *)
-Ltac find_rewrite_lem_by lem t :=
-  match goal with
-    | [ H : _ |- _ ] =>
-      rewrite lem in H by t
+Ltac2 Notation "find_rewrite_lem_by" 
+  lem(constr) 
+  tac(tactic(6)) :=
+  match! goal with
+  | [ h : _ |- _ ] =>
+    rew_in $lem $h by tac
   end.
 
 (** [find_erewrite_lem_by lem] erewrites with [lem] in some hypothesis
     if it can discharge the obligations with [eauto]. *)
-Ltac find_erewrite_lem lem :=
-  match goal with
-  | [ H : _ |- _] => erewrite lem in H by eauto
-  | |- _ => erewrite lem by eauto
+Ltac2 Notation "find_erewrite_lem" 
+  lem(ident) :=
+  match! goal with
+  | [ h : _ |- _] => 
+    erewrite $lem in $h by eauto
+  | [ |- _ ] => 
+    erewrite $lem by eauto
   end.
 
 (** [find_reverse_rewrite] performs a [rewrite <-] with some hypothesis in some
     other hypothesis. *)
-Ltac find_reverse_rewrite :=
-  match goal with
-    | [ H : _ = ?X _ _ _ _, H' : ?X _ _ _ _ = _ |- _ ] => rewrite <- H in H'
-    | [ H : _ = ?X, H' : context [ ?X ] |- _ ] => rewrite <- H in H'
-    | [ H : _ = ?X |- context [ ?X ] ] => rewrite <- H
-  end.
+Ltac2 Notation "find_reverse_rewrite" :=
+  subst_max;
+  match! goal with
+  | [ h : ?_x = _ |- context [ ?_x ] ] => 
+    let h := Control.hyp h in
+    rewrite <- $h
+  | [ h : ?_x = _, h' : context [ ?_x ] |- _ ] => 
+    let h := Control.hyp h in
+    rewrite <- $h in $h'
+  | [ h : ?_x = _, h' : ?_x = _ |- _ ] => 
+    printf "unique case! please report"; 
+    let h := Control.hyp h in
+    rewrite <- $h in $h'
+  | [ h : ?_x _ = _, h' : ?_x _ = _ |- _ ] => 
+    let h := Control.hyp h in
+    rewrite <- $h in $h'
+  | [ h : ?_x _ _ = _, h' : ?_x _ _ = _ |- _ ] => 
+    let h := Control.hyp h in
+    rewrite <- $h in $h'
+  | [ h : ?_x _ _ _ = _, h' : ?_x _ _ _ = _ |- _ ] => 
+    let h := Control.hyp h in
+    rewrite <- $h in $h'
+  | [ h : ?_x _ _ _ _ = _, h' : ?_x _ _ _ _ = _ |- _ ] => 
+    let h := Control.hyp h in
+    rewrite <- $h in $h'
+  end;
+  (* Can this ever actually succeed where "find_rewrite" didn't? *)
+  printf "find_reverse_rewrite WORKED!".
 
 (** [find_inversion] find a symmetric equality and performs [invc] on it. *)
-Ltac find_inversion :=
-  match goal with
-    | [ H : ?X _ _ _ _ _ _ = ?X _ _ _ _ _ _ |- _ ] => invc H
-    | [ H : ?X _ _ _ _ _ = ?X _ _ _ _ _ |- _ ] => invc H
-    | [ H : ?X _ _ _ _ = ?X _ _ _ _ |- _ ] => invc H
-    | [ H : ?X _ _ _ = ?X _ _ _ |- _ ] => invc H
-    | [ H : ?X _ _ = ?X _ _ |- _ ] => invc H
-    | [ H : ?X _ = ?X _ |- _ ] => invc H
+Ltac2 Notation "find_inversion" :=
+  match! goal with
+  | [ h : ?_x _ = ?_x _ |- _ ] => 
+    let h := Control.hyp h in invc $h
+  | [ h : ?_x _ _ = ?_x _ _ |- _ ] => 
+    let h := Control.hyp h in invc $h
+  | [ h : ?_x _ _ _ = ?_x _ _ _ |- _ ] => 
+    let h := Control.hyp h in invc $h
+  | [ h : ?_x _ _ _ _ = ?_x _ _ _ _ |- _ ] => 
+    let h := Control.hyp h in invc $h
+  | [ h : ?_x _ _ _ _ _ = ?_x _ _ _ _ _ |- _ ] => 
+    let h := Control.hyp h in invc $h
+  | [ h : ?_x _ _ _ _ _ _ = ?_x _ _ _ _ _ _ |- _ ] => 
+    let h := Control.hyp h in invc $h
   end.
+
+Ltac2 Notation find_inversion := find_inversion.
 
 (** [prove_eq] derives equalities of arguments from an equality of
     constructed values. *)
-Ltac prove_eq :=
-  match goal with
-    | [ H : ?X ?x1 ?x2 ?x3 = ?X ?y1 ?y2 ?y3 |- _ ] =>
-      assert (x1 = y1) by congruence;
-        assert (x2 = y2) by congruence;
-        assert (x3 = y3) by congruence;
-        clear H
-    | [ H : ?X ?x1 ?x2 = ?X ?y1 ?y2 |- _ ] =>
-      assert (x1 = y1) by congruence;
-        assert (x2 = y2) by congruence;
-        clear H
-    | [ H : ?X ?x1 = ?X ?y1 |- _ ] =>
-      assert (x1 = y1) by congruence;
-        clear H
-  end.
-
-(** [tuple_inversion] inverses an equality of tuple into equalities for
-    each component. *)
-Ltac tuple_inversion :=
-  match goal with
-    | [ H : (_, _, _, _) = (_, _, _, _) |- _ ] => invc H
-    | [ H : (_, _, _) = (_, _, _) |- _ ] => invc H
-    | [ H : (_, _) = (_, _) |- _ ] => invc H
-  end.
-
-(** [f_apply H f] derives a hypothesis of type [f X = f Y] if [H] has
-    type [X = Y]. *)
-Ltac f_apply H f :=
-  match type of H with
-    | ?X = ?Y =>
-      assert (f X = f Y) by (rewrite H; auto)
+Ltac2 Notation "prove_eq" :=
+  match! goal with
+  | [ h : ?_x ?x1 = ?_x ?y1 |- _ ] =>
+    assert ($x1 = $y1) by congruence; 
+    clear $h
+  | [ h : ?_x ?x1 ?x2 = ?_x ?y1 ?y2 |- _ ] =>
+    assert ($x1 = $y1) by congruence;
+    assert ($x2 = $y2) by congruence;
+    clear $h
+  | [ h : ?_x ?x1 ?x2 ?x3 = ?_x ?y1 ?y2 ?y3 |- _ ] =>
+    assert ($x1 = $y1) by congruence;
+    assert ($x2 = $y2) by congruence;
+    assert ($x3 = $y3) by congruence;
+    clear $h
   end.
 
 (** [break_let] breaks a destructuring [let] for a pair. *)
-Ltac break_let :=
-  match goal with
-    | [ H : context [ (let (_,_) := ?X in _) ] |- _ ] => destruct X eqn:?
-    | [ |- context [ (let (_,_) := ?X in _) ] ] => destruct X eqn:?
+Ltac2 Notation "break_let" :=
+  match! goal with
+  | [ _h : context [ (let (_,_) := ?x in _) ] |- _ ] => 
+    destruct $x eqn:?
+  | [ |- context [ (let (_,_) := ?x in _) ] ] => 
+    destruct $x eqn:?
   end.
+
+Ltac2 Notation break_let := break_let.
 
 (** [break_or_hyp] breaks a disjunctive hypothesis, splitting your
     goal into two. *)
-Ltac break_or_hyp :=
-  match goal with
-    | [ H : _ \/ _ |- _ ] => invc H
+Ltac2 Notation "break_or_hyp" :=
+  match! goal with
+  | [ h : _ \/ _ |- _ ] => 
+    let h := Control.hyp h in invc $h
   end.
+Ltac2 Notation break_or_hyp := break_or_hyp.
 
 (** [copy_apply lem H] adds a hypothesis obtained by [apply]-ing [lem]
     in [H]. *)
