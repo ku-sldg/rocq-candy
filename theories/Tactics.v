@@ -667,7 +667,7 @@ Ltac prep_induction H :=
 
 Ltac2 Notation "prep_induction" 
   h(ident) :=
-  ltac1:(h |- prep_induction h) (Ltac1.of_constr h).
+  ltac1:(h |- prep_induction h) (Ltac1.of_ident h).
 
 (** [injc H] performs [injection] on [H], then clears [H] and
     simplifies the context. *)
