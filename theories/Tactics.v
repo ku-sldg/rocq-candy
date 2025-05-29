@@ -869,6 +869,12 @@ Ltac2 pose_proof (x : constr) (y : ident option) :=
     ltac1:(x y |- pose proof x as y) (Ltac1.of_constr x) (Ltac1.of_ident yval)
   end.
 
+(*  
+----------------------------------------------
+My semi-compatability layer for Ltac1 -> Ltac2
+----------------------------------------------
+*)
+
 Ltac2 Notation "pose" "proof" 
   x(constr)
   y(opt(seq("as", ident))) :=
@@ -885,3 +891,9 @@ Ltac2 Notation "pps"
 
 Ltac2 Notation "ref" x(preterm) :=
   ltac1:(x |- refine x) (Ltac1.of_preterm x).
+
+Ltac2 Notation congruence := congruence.
+Ltac2 Notation cong := congruence.
+
+Ltac2 Notation "intuition" := ltac1:(intuition).
+Ltac2 Notation intuition := intuition.
