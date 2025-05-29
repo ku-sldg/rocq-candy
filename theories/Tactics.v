@@ -7,7 +7,7 @@ Import ListNotations.
 From ExtLib Require Export Tactics BoolTac.
 
 From Ltac2 Require Export Ltac2 Printf Pstring Notations.
-From Ltac2 Require Export Bool Lazy Array Lazy FMap Fresh Control.
+From Ltac2 Require Export Bool Lazy Array Lazy FMap Fresh Control Ltac1.
 
 (** [clean] removes any hypothesis of the shape [X = X]. *)
 Ltac2 Notation "clean" :=
@@ -198,6 +198,7 @@ Qed.
     goal. *)
 Ltac2 Notation "break_match" := 
   oneOf [ break_match_goal | break_match_hyp ].
+Ltac2 Notation break_match := break_match.
 
 Ltac2 rec break_match_hyp_rec (hyp : ident) :=
   match! (Constr.type (Control.hyp hyp)) with
@@ -512,146 +513,92 @@ Ltac2 Notation "break_or_hyp" :=
   end.
 Ltac2 Notation break_or_hyp := break_or_hyp.
 
-(** [copy_apply lem H] adds a hypothesis obtained by [apply]-ing [lem]
-    in [H]. *)
-Ltac copy_apply lem H :=
-  let x := fresh in
-  pose proof H as x;
-    apply lem in x.
-
-(** [copy_eapply lem H] adds a hypothesis obtained by [eapply]-ing
-    [lem] in [H]. *)
-Ltac copy_eapply lem H :=
-  let x := fresh in
-  pose proof H as x;
-    eapply lem in x.
-
-(** [conclude_using tac] specializes a hypothesis if it can prove its
-    premise using [tac]. *)
-Ltac conclude_using tac :=
-  match goal with
-    | [ H : ?P -> _ |- _ ] => conclude H tac
-  end.
-
 (** [find_higher_order_rewrite] tries to [rewrite] with
     possibly-quantified hypotheses into other hypotheses or the
     goal. *)
-Ltac find_higher_order_rewrite :=
-  match goal with
-    | [ H : _ = _ |- _ ] => rewrite H in *
-    | [ H : forall _, _ = _ |- _ ] => rewrite H in *
-    | [ H : forall _ _, _ = _ |- _ ] => rewrite H in *
+Ltac2 Notation "find_higher_order_rewrite" :=
+  match! goal with
+  | [ h : _ = _ |- _ ] => 
+    let h := Control.hyp h in rewrite $h in *
+  | [ h : forall _, _ = _ |- _ ] => 
+    let h := Control.hyp h in rewrite $h in *
+  | [ h : forall _ _, _ = _ |- _ ] => 
+    let h := Control.hyp h in rewrite $h in *
   end.
+
+Ltac2 Notation find_higher_order_rewrite := find_higher_order_rewrite.
 
 (** [find_reverse_higher_order_rewrite] tries to [rewrite <-] with
     possibly-quantified hypotheses into other hypotheses or the
     goal. *)
-Ltac find_reverse_higher_order_rewrite :=
-  match goal with
-    | [ H : _ = _ |- _ ] => rewrite <- H in *
-    | [ H : forall _, _ = _ |- _ ] => rewrite <- H in *
-    | [ H : forall _ _, _ = _ |- _ ] => rewrite <- H in *
+Ltac2 Notation "find_reverse_higher_order_rewrite" :=
+  match! goal with
+  | [ h : _ = _ |- _ ] => 
+    let h := Control.hyp h in rewrite <- $h in *
+  | [ h : forall _, _ = _ |- _ ] => 
+    let h := Control.hyp h in rewrite <- $h in *
+  | [ h : forall _ _, _ = _ |- _ ] =>
+    let h := Control.hyp h in rewrite <- $h in *
   end.
+
+Ltac2 Notation find_reverse_higher_order_rewrite := find_reverse_higher_order_rewrite.
 
 (** [find_apply_hyp_goal] tries solving the goal applying some
     hypothesis. *)
-Ltac find_apply_hyp_goal :=
-  match goal with
-    | [ H : _ |- _ ] => solve [apply H]
-  end.
-
-(** [find_copy_apply_lem_hyp lem] tries to find a hypothesis to which
-    [lem] can be applied, and adds a hypothesis resulting from the
-    application. *)
-Ltac find_copy_apply_lem_hyp lem :=
-  match goal with
-    | [ H : _ |- _ ] => copy_apply lem H
+Ltac2 Notation "find_apply_hyp_goal" :=
+  match! goal with
+  | [ h : _ |- _ ] => 
+    let h := Control.hyp h in
+    solve [apply $h]
   end.
 
 (** [find_apply_hyp_hyp] finds a hypothesis which can be applied in
     another hypothesis, and performs the application. *)
-Ltac find_apply_hyp_hyp :=
-  match goal with
-    | [ H : forall _, _ -> _,
-        H' : _ |- _ ] =>
-      apply H in H'; [idtac]
-    | [ H : _ -> _ , H' : _ |- _ ] =>
-      apply H in H'; auto; [idtac]
+Ltac2 Notation "find_apply_hyp_hyp" :=
+  match! goal with
+  | [ h : forall _, _ -> _,
+      h' : _ |- _ ] =>
+    let h := Control.hyp h in
+    apply $h in $h' > [()]
+  | [ h : _ -> _ , 
+      h' : _ |- _ ] =>
+    let h := Control.hyp h in
+    apply $h in $h'; eauto > [()]
   end.
 
-Ltac find_eapply_hyp_hyp :=
-  match goal with
-  | [ H : forall _, _ -> _,
-        H' : _ |- _ ] =>
-    eapply H in H'; [idtac]
-  | [ H : _ -> _ , H' : _ |- _ ] =>
-    eapply H in H'; auto; [idtac]
+Ltac2 Notation find_apply_hyp_hyp := find_apply_hyp_hyp.
+
+Ltac2 Notation "find_eapply_hyp_hyp" :=
+  match! goal with
+  | [ h : forall _, _ -> _,
+      h' : _ |- _ ] =>
+    let h := Control.hyp h in
+    eapply $h in $h' > [()]
+  | [ h : _ -> _ , 
+      h' : _ |- _ ] =>
+    let h := Control.hyp h in
+    eapply $h in $h'; eauto > [()]
   end.
 
-(** [find_copy_apply_hyp_hyp] finds a hypothesis which can be applied
-    in another hypothesis, and adds a hypothesis with the application
-    performed. *)
-Ltac find_copy_apply_hyp_hyp :=
-  match goal with
-    | [ H : forall _, _ -> _,
-        H' : _ |- _ ] =>
-      copy_apply H H'; [idtac]
-    | [ H : _ -> _ , H' : _ |- _ ] =>
-      copy_apply H H'; auto; [idtac]
-  end.
-
-(** [find_apply_lem_hyp lem] finds a hypothesis where [lem] can be
-    [apply]-ed, and performes the application. *)
-Ltac find_apply_lem_hyp lem :=
-  match goal with
-    | [ H : _ |- _ ] => apply lem in H
-  end.
+Ltac2 Notation find_eapply_hyp_hyp := find_eapply_hyp_hyp.
 
 (** [find_eapply_lem_hyp lem] finds a hypothesis where [lem] can be
     [eapply]-ed, and performes the application. *)
-Ltac find_eapply_lem_hyp lem :=
-  match goal with
-    | [ H : _ |- _ ] => eapply lem in H
-  end.
-
-(** TODO: document this. *)
-Ltac insterU H :=
-  match type of H with
-    | forall _ : ?T, _ =>
-      let x := fresh "x" in
-      evar (x : T);
-      let x' := (eval unfold x in x) in
-        clear x; specialize (H x')
-  end.
-
-(** TODO: document this. *)
-Ltac find_insterU :=
-  match goal with
-    | [ H : forall _, _ |- _ ] => insterU H
-  end.
-
-(** [eapply_prop P] finds a hypothesis proving [P] and [eapply]-es it. *)
-Ltac eapply_prop P :=
-  match goal with
-    | H : P _ |- _ =>
-      eapply H
-  end.
-
-(** [find_eapply_prop P] finds a hypothesis including [P] and [eapply]-es it. *)
-Ltac find_eapply_prop P :=
-  match goal with
-    | H : context [ P ] |- _ =>
-      eapply H
+Ltac2 Notation "find_eapply_lem_hyp" 
+  lem(ident) :=
+  match! goal with
+  | [ h : _ |- _ ] => 
+    eapply $lem in $h
   end.
 
 (** [isVar t] succeeds if term [t] is a variable in the context. *)
 Ltac isVar t :=
-    match goal with
-      | v : _ |- _ =>
-        match t with
-          | v => idtac
-        end
-    end.
+  match goal with
+  | v : _ |- _ =>
+    match t with
+    | v => idtac
+    end
+  end.
 
 (** [remGen t] is useful when one wants to do induction on a
     hypothesis whose indices are not concrete.  By default, the
@@ -718,156 +665,111 @@ Ltac prep_induction H :=
   rememberNonVars H;
   generalizeEverythingElse H.
 
-(* [econcludes] tries to specialize a hypothesis using [eauto]. *)
-Ltac econcludes :=
-  match goal with
-    | [ H : ?P -> _ |- _ ] => conclude H eauto
-  end.
-
-(** [find_copy_eapply_lem_hyp lem] tries to find a hypothesis to which
-    [lem] can be [eapply]-ed, and adds a hypothesis resulting from the
-    application. *)
-Ltac find_copy_eapply_lem_hyp lem :=
-  match goal with
-    | [ H : _ |- _ ] => copy_eapply lem H
-  end.
-
-(** [apply_prop_hyp P Q] tries to [apply] a hypothesis about [P] to a
-    hypothesis about [Q]. *)
-Ltac apply_prop_hyp P Q :=
-  match goal with
-  | [ H : context [ P ], H' : context [ Q ] |- _ ] =>
-    apply H in H'
-  end.
-
-(** [apply_prop_hyp P Q] tries to [eapply] a hypothesis about [P] to a
-    hypothesis about [Q]. *)
-Ltac eapply_prop_hyp P Q :=
-  match goal with
-  | [ H : context [ P ], H' : context [ Q ] |- _ ] =>
-    eapply H in H'
-  end.
-
-(** [apply_prop_hyp P Q] tries to [eapply] a hypothesis about [P] to a
-    hypothesis about [Q], posing the result as a new hypothesis. *)
-Ltac copy_eapply_prop_hyp P Q :=
-  match goal with
-    | [ H : context [ P ], H' : context [ Q ] |- _ ] =>
-      copy_eapply H H'
-  end.
-
-Ltac eapply_lem_prop_hyp lem P :=
-  match goal with
-  | [ H : context [ P ] |- _ ] =>
-    eapply lem in H
-  end.
-
-Ltac copy_eapply_lem_prop_hyp lem P :=
-  match goal with
-  | [ H : context [ P ] |- _ ] =>
-    copy_eapply lem H
-  end.
-
-(** [find_false] finds a hypothesis of the shape [P -> False] in the
-    context and cuts your goal with it, leaving you with the
-    obligation of proving its premise [P]. *)
-Ltac find_false :=
-  match goal with
-    | H : _ -> False |- _ => exfalso; apply H
-  end.
+Ltac2 Notation "prep_induction" 
+  h(ident) :=
+  ltac1:(h |- prep_induction h) (Ltac1.of_constr h).
 
 (** [injc H] performs [injection] on [H], then clears [H] and
     simplifies the context. *)
-Ltac injc H :=
-  injection H; clear H; intros; subst_max.
+Ltac2 injc (h : ident) :=
+  let h := Control.hyp h in
+  (* Perform injection *)
+  injection $h; 
+  clear h; intros; subst_max.
 
 (** [find_injection] looks for an [injection] in the context and
     performs [injc]. *)
-Ltac find_injection :=
-  match goal with
-    | [ H : ?X _ _ _ _ _ _ _ = ?X _ _ _ _ _ _ _ |- _ ] => injc H
-    | [ H : ?X _ _ _ _ _ _ = ?X _ _ _ _ _ _ |- _ ] => injc H
-    | [ H : ?X _ _ _ _ _ = ?X _ _ _ _ _ |- _ ] => injc H
-    | [ H : ?X _ _ _ _ = ?X _ _ _ _ |- _ ] => injc H
-    | [ H : ?X _ _ _ = ?X _ _ _ |- _ ] => injc H
-    | [ H : ?X _ _ = ?X _ _ |- _ ] => injc H
-    | [ H : ?X _ = ?X _ |- _ ] => injc H
+Ltac2 Notation "find_injection" :=
+  match! goal with
+  | [ h : ?_x _ = ?_x _ |- _ ] => injc h
+  | [ h : ?_x _ _ = ?_x _ _ |- _ ] => injc h
+  | [ h : ?_x _ _ _ = ?_x _ _ _ |- _ ] => injc h
+  | [ h : ?_x _ _ _ _ = ?_x _ _ _ _ |- _ ] => injc h
+  | [ h : ?_x _ _ _ _ _ = ?_x _ _ _ _ _ |- _ ] => injc h
+  | [ h : ?_x _ _ _ _ _ _ = ?_x _ _ _ _ _ _ |- _ ] => injc h
+  | [ h : ?_x _ _ _ _ _ _ _ = ?_x _ _ _ _ _ _ _ |- _ ] => injc h
   end.
+Ltac2 Notation find_injection := find_injection.
 
 (** [aggressive_rewrite_goal] rewrites in the goal with any
     hypothesis. *)
-Ltac aggressive_rewrite_goal :=
-  match goal with H : _ |- _ => rewrite H end.
-
-(** [break_exists_name x] destructs an existential in context and
-    names the witness [x]. *)
-Ltac break_exists_name x :=
-  match goal with
-  | [ H : exists _, _ |- _ ] => destruct H as [x H]
+Ltac2 Notation "aggressive_rewrite_goal" :=
+  match! goal with 
+  | [ h : _ |- _ ] => 
+    let h := Control.hyp h in
+    rewrite $h
   end.
 
-Tactic Notation "check_num_goals" natural(n) :=
-  let num := numgoals in
-  guard num = n.
-
-Tactic Notation "check_num_goals_le" natural(n) :=
-  let num := numgoals in
-  guard num <= n.
-
-Ltac break_logic_hyps :=
+Ltac2 Notation "break_logic_hyps" :=
   repeat (
     try break_or_hyp;
     try break_and;
     try break_exists
   ).
 
-Ltac break_iff :=
-  match goal with
-  | |- _ <-> _ => split; intros
+Ltac2 Notation "break_iff" :=
+  match! goal with
+  | [ |- _ <-> _ ] => split; intros
   end.
 
-Ltac full_do_bool :=
+Ltac2 Notation break_iff := break_iff.
+
+Ltac2 Notation "do_bool" := ltac1:(do_bool).
+
+Ltac2 Notation "full_do_bool" :=
   intros; break_logic_hyps;
   do_bool;
   (* Do bool from extlib does well on hyps, but not goals *)
   repeat 
-    (match goal with
-    | |- context [andb ?x ?y = true] => 
+    (match! goal with
+    | [ |- context [andb ?_x ?_y = true] ] => 
       erewrite andb_true_iff; split; do_bool
-    | |- context [andb ?x ?y = false] => 
+    | [ |- context [andb ?_x ?_y = false] ] => 
       erewrite andb_false_iff; split; do_bool
-    | |- context [orb ?x ?y = true] => 
+    | [ |- context [orb ?_x ?_y = true] ] => 
       erewrite orb_true_iff; do_bool; eauto
-    | |- context [orb ?x ?y = false] => 
+    | [ |- context [orb ?_x ?_y = false] ] => 
       erewrite orb_false_iff; do_bool; eauto
-    end; try simple congruence 1);
-  try simple congruence 1.
+    end; try (simple congruence 1));
+  try (simple congruence 1).
 
-Ltac max_RW :=
+Ltac2 Notation max_RW :=
   simpl in *;
   subst_max;
   repeat find_rewrite.
 
-Ltac breaker :=
-  repeat (break_match; subst; try congruence).
+Ltac2 Notation breaker :=
+  repeat (
+    break_match; 
+    subst; 
+    try (congruence)
+  ).
 
-Ltac rw_all :=
+Ltac2 Notation "rw_all" :=
   subst_max;
   repeat (
-    match goal with
-    | H : context [iff _ _] , H' : _ |- _ => 
-      erewrite H in H'
-    | H : context [eq _ _] , H' : _ |- _ => 
-      erewrite H in H'
-    | H : context [iff _ _] |- _ => 
-      erewrite H
-    | H : context [eq _ _] |- _ =>
-      erewrite H
+    match! goal with
+    | [ h : context [iff _ _], 
+        h' : _ |- _] => 
+      let h := Control.hyp h in
+      erewrite $h in $h'
+    | [ h : context [eq _ _] , 
+        h' : _ |- _] => 
+      let h := Control.hyp h in
+      erewrite $h in $h'
+    | [ h : context [iff _ _] |- _ ] => 
+      let h := Control.hyp h in
+      erewrite $h
+    | [ h : context [eq _ _] |- _ ] =>
+      let h := Control.hyp h in
+      erewrite $h
     end;
     subst_max;
     eauto;
-    try simple congruence 1
+    try (simple congruence 1)
   ); eauto.
+
+Ltac2 Notation rw_all := rw_all.
 
 Ltac2 tac_list_thunk tac_list :=
   match tac_list with
@@ -884,50 +786,54 @@ Ltac2 tac_list_thunk tac_list :=
    invert on resulting goals *)
 Ltac2 rec ff tac :=
   repeat (
-    ltac1:(try unfold not in *;
+    try (unfold not in *);
     intros;
     (* Break up logical statements *)
     repeat break_and;
     repeat break_exists;
-    try break_iff);
+    try break_iff;
     (* 
     This is proving too computationly expensive to do in general
     *)
     try (tac ());
-    ltac1:(repeat (
+    repeat (
       simpl in *;
       repeat find_rewrite;
       try break_match;
-      try congruence;
+      try (congruence);
       repeat find_rewrite;
-      try congruence;
-      repeat find_injection;
-      try congruence;
+      try (congruence);
+      repeat (find_injection);
+      try (congruence);
       simpl in *;
       subst_max; eauto;
-      try congruence
+      try (congruence)
       (* Too expensive in general
       ; try solve_by_inversion *)
-    ));
+    );
     (* We only break up hyp ORs if we <= the total number of goals *)
     try (
       let num := numgoals () in
-      ltac1:(break_or_hyp); ff tac; 
+      break_or_hyp; ff tac; 
       ltac1:(num |- let num2 := numgoals in
       guard num2 <= num) (Ltac1.of_int num))
   ).
 
-Ltac2 l := fun _ => ltac1:(try lia).
+Ltac2 Notation "lia" := 
+  ltac1:(lia).
+Ltac2 Notation lia := lia.
+
+Ltac2 l := fun _ => try lia.
 Ltac2 Notation "l" := l.
 Ltac2 u := fun _ => ltac1:(repeat autounfold in *).
 Ltac2 Notation "u" := u.
-Ltac2 a := fun _ => ltac1:(repeat find_apply_hyp_hyp).
+Ltac2 a := fun _ => repeat find_apply_hyp_hyp.
 Ltac2 Notation "a" := a.
-Ltac2 r := fun _ => ltac1:(rw_all).
+Ltac2 r := fun _ => rw_all.
 Ltac2 Notation "r" := r.
-Ltac2 v := fun _ => ltac1:(vm_compute).
+Ltac2 v := fun _ => vm_compute.
 Ltac2 Notation "v" := v.
-Ltac2 d := fun _ => ltac1:(idtac "DebugPrint").
+Ltac2 d := fun _ => printf "DebugPrint".
 Ltac2 Notation "d" := d.
 
 (* [interp_tac_str] interprets a string as a sequence of tactics. *)
@@ -944,33 +850,16 @@ Ltac2 Notation "ff"
   tacs(opt(list0(tactic(0), ","))) :=
   ff_core tacs.
 
-Ltac target_find_rewrite H :=
-  lazymatch type of H with
-  | ?X = ?Y =>
-    (* rewrite in goals *)
-    lazymatch goal with
-    | [ |- context[X] ] => rewrite H
-    end;
-    (* rewrite in hyps *)
-    lazymatch goal with
-    | [ H' : context[X] |- _ ] => 
-      rewrite H in H'; clear H
-    end
-  end.
-
-Ltac clean_up_hyp H :=
-  (* try injc H;
-  try target_find_rewrite H; *)
-  try simple congruence 1.
-
-Ltac target_break_match H :=
-  lazymatch type of H with
-  | context[match ?X with _ => _ end] => 
-    let Hbm := fresh "Hbm" in
-    destruct X eqn:Hbm; 
-    try find_injection;
-    try simple congruence 1; try target_break_match Hbm;
-    try target_break_match H
+Ltac2 rec target_break_match
+  (h : ident) :=
+  lazy_match! Constr.type (Control.hyp h)with
+  | context[match ?x with _ => _ end] => 
+    let h' := Fresh.in_goal h in
+    destruct $x eqn:h'; 
+    try (find_injection);
+    try (simple congruence 1); 
+    try (target_break_match h');
+    try (target_break_match h)
   end.
 
 Ltac2 pose_proof (x : constr) (y : ident option) :=
@@ -993,3 +882,6 @@ Ltac2 Notation "pp"
 Ltac2 Notation "pps" 
   xs(list0(constr, ",")) :=
   List.fold_left (fun _ x => pose_proof x None) () xs.
+
+Ltac2 Notation "ref" x(preterm) :=
+  ltac1:(x |- refine x) (Ltac1.of_preterm x).

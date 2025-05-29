@@ -36,6 +36,14 @@ Ltac destEq t1 t2 :=
   [ rewrite eqb_eq in * | rewrite eqb_neq in *]; 
   subst; eauto.
 
+Ltac2 Notation "destEq" 
+  t1(preterm)
+  t2(preterm)
+  :=
+  ltac1:(t1 t2 |- 
+    destEq t1 t2)
+  (Ltac1.of_preterm t1) (Ltac1.of_preterm t2).
+
 Ltac break_eqs :=
   repeat (
     match goal with
@@ -56,24 +64,26 @@ Ltac break_eqs :=
         then fail
         else destEq p1 p2
     end;
-    subst_max;
+    ltac2:(subst_max;
     full_do_bool;
-    try simple congruence 1
+    try (simple congruence 1))
   ).
 
-Ltac eq_crush :=
+Ltac2 Notation "break_eqs" :=
+  ltac1:(break_eqs).
+Ltac2 Notation break_eqs :=
+  break_eqs.
+
+Ltac2 Notation eq_crush :=
   eauto;
-  try simple congruence 1;
+  try (simple congruence 1);
   subst_max;
   break_eqs;
   subst_max;
   full_do_bool;
   subst_max;
-  try congruence;
+  try (congruence);
   eauto.
-
-Ltac2 Notation "eq_crush" :=
-  ltac1:(eq_crush).
 
 Ltac2 e := fun () => eq_crush.
 
@@ -155,9 +165,6 @@ Global Instance EqClass_nat : EqClass nat := {
   eqb:= Nat.eqb;
   eqb_eq := nat_eqb_eq 
 }.
-
-Ltac2 Notation "ref" x(preterm) :=
-  ltac1:(x |- refine x) (Ltac1.of_preterm x).
 
 Global Instance EqClass_prod {A B:Type} `{EqClass A, EqClass B} : EqClass (A*B).
 ref (Build_EqClass _ 
