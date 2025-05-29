@@ -62,8 +62,9 @@ Ltac break_eqs :=
     y : B,
     where underneath A == B, we end up with a big issue.
     We don't really want to do it for this case (a lot of ID-esque types are all the same, but shouldn't really be considered comparable).
+    *)
 
-    | p1 : ?T, p2 : ?T |- _ => 
+    | p1 : ?T, p2 : ?T, HT : EqClass ?T |- _ => 
         tryif (
           (* If we already have NEQ hyps, don't make more *)
           match goal with
@@ -71,7 +72,6 @@ Ltac break_eqs :=
           end)
         then fail
         else destEq p1 p2
-    *)
     end;
     ltac2:(subst_max;
     full_do_bool;
