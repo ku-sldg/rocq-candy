@@ -55,6 +55,14 @@ Ltac break_eqs :=
         destEq p1 p2
     | |- context [ eqb ?p1 ?p2 ] =>
         destEq p1 p2
+    (*
+    NOTE: In theory, this is great... but it can really explode quickly.
+    For example
+    x : A,
+    y : B,
+    where underneath A == B, we end up with a big issue.
+    We don't really want to do it for this case (a lot of ID-esque types are all the same, but shouldn't really be considered comparable).
+
     | p1 : ?T, p2 : ?T |- _ => 
         tryif (
           (* If we already have NEQ hyps, don't make more *)
@@ -63,6 +71,7 @@ Ltac break_eqs :=
           end)
         then fail
         else destEq p1 p2
+    *)
     end;
     ltac2:(subst_max;
     full_do_bool;
