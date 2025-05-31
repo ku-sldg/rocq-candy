@@ -154,10 +154,10 @@ Ltac2 Notation "invc"
   arg(destruction_arg) 
   pat(opt(seq("as", intropattern)))
   ids(opt(seq("in", list1(ident)))) :=
-  Std.inversion Std.FullInversion arg pat ids;
+  Std.inversion Std.FullInversionClear arg pat ids;
   subst_max; 
   match arg with
-  | Std.ElimOnIdent h => clear $h
+  | Std.ElimOnIdent h => try (clear $h)
   | _ => ()
   end.
 
@@ -165,10 +165,10 @@ Ltac2 Notation "invcs"
   arg(destruction_arg) 
   pat(opt(seq("as", intropattern)))
   ids(opt(seq("in", list1(ident)))) :=
-  Std.inversion Std.FullInversion arg pat ids;
+  Std.inversion Std.FullInversionClear arg pat ids;
   subst_max;
   match arg with
-  | Std.ElimOnIdent h => clear $h
+  | Std.ElimOnIdent h => try (clear $h)
   | _ => ()
   end;
    simpl in *.
