@@ -1,17 +1,22 @@
-(*
-Generic Typeclass for equality, plus some instances.
-
-Authors:  Adam Petz, ampetz@ku.edu
-          Will Thomas, 30wthomas@ku.edu
- *)
-
-From Stdlib Require Import EquivDec Setoid String List.
-From RocqCandy Require Import Tactics.
-
 Class EqClass (A : Type) := { 
   eqb : A -> A -> bool ;
   eqb_eq : forall x y, eqb x y = true <-> x = y 
 }.
+
+Class DecEq (A : Type) := {
+  dec_eq : forall x y : A, {x = y} + {x <> y}
+}.
+
+Theorem deceq_impl_eqclass : forall {A} `{DecEq A}, EqClass A.
+intros.
+ref (Build_EqClass _ 
+  (fun x y => if dec_eq x y then true else false) 
+  _).
+  ff.
+Qed.
+
+(* NOTE: This is a bit of a hack, but it is the only way to get the
+   EqClass to be usable in Ltac2. *)
 
 (* NOTE: These theorems don't go inside the section 
 because the Ltac needs them, and Ltac cannot be exported from a section

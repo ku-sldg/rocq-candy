@@ -12,18 +12,18 @@ Export ListNotations.
 (* Exporting finite assoc list based maps *)
 From ExtLib Require Export RelDec Maps FMapAList.
 
-From RocqCandy Require Export Stringifiable Tactics EqClass ResultMonad.
+From RocqCandy Require Export Stringifiable Tactics DecEq ResultMonad.
 
 Global Instance RelDec_EqDec T f `{EqDec T f} : RelDec f := {
   rel_dec := fun x y => if equiv_dec x y then true else false
 }.
 
-Global Instance RelDec_EqClass T `{EqClass T} : @RelDec T eq := {
-  rel_dec := fun x y => eqb x y
+Global Instance RelDec_EqClass T `{DecEq T} : @RelDec T eq := {
+  rel_dec := fun x y => if dec_eq x y then true else false
 }.
 
-Definition FMap K V `{EqClass K} := alist K V.
-Global Instance Map_FMap K V `{EqClass K} : Map K V (FMap K V).
+Definition FMap K V `{DecEq K} := alist K V.
+Global Instance Map_FMap K V `{DecEq K} : Map K V (FMap K V).
 eapply Map_alist; eauto.
 typeclasses_eauto.
 Defined.
@@ -33,7 +33,6 @@ Global Instance EqDec_string : EqDec string eq := string_dec.
 Global Instance EqDec_nat : EqDec nat eq := Peano_dec.eq_nat_dec.
 Global Instance EqDec_Z : EqDec Z eq := Z.eq_dec.
 
-Global Instance EqClass_Z : EqClass Z := {
-  eqb := Z.eqb;
-  eqb_eq := Z.eqb_eq
+Global Instance DecEq_Z : DecEq Z := {
+  dec_eq := Z.eq_dec
 }.
