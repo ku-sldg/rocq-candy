@@ -42,7 +42,8 @@ Ltac2 destEq (t1 : constr) (t2 : constr) :=
     rewrite eqb_neq in *
   ];
   subst; 
-  eauto.
+  eauto;
+  try (simple congruence 1).
 
 Ltac2 Notation "destEq" 
   t1(constr)
@@ -56,13 +57,13 @@ Ltac2 break_eqs () :=
     repeat (
       match! goal with
       | [ h : context [ eqb ?_p1 ?_p1 ] |- _ ] =>
-          erewrite eqb_refl in $h; subst_max
+        erewrite eqb_refl in $h; subst_max
       | [ |- context [ eqb ?_p1 ?_p1 ] ] =>
-          erewrite eqb_refl; try reflexivity
+        erewrite eqb_refl; try reflexivity
       | [ _h : context [ eqb ?p1 ?p2 ] |- _ ] =>
-          destEq $p1 $p2
+        destEq $p1 $p2
       | [ |- context [ eqb ?p1 ?p2 ] ] =>
-          destEq $p1 $p2
+        destEq $p1 $p2
       end
     );
     (* Next, we want to just do a more aggressive destruction *)
@@ -84,7 +85,7 @@ Ltac2 break_eqs () :=
       if Bool.neg (Constr.equal p1 p1' && Constr.equal p2 p2') 
       then fail
       else
-        if (already_proven '($p1 <> $p2)%type)
+        if (already_proven preterm:(($p1 <> $p2)%type))
         then (* skip, we already have a lemma disproving *) fail
         else (destEq $p1 $p2))
     end);

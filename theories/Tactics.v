@@ -7,7 +7,7 @@ Import ListNotations.
 From ExtLib Require Export Tactics BoolTac.
 
 From Ltac2 Require Export Ltac2 Printf Pstring Notations.
-From Ltac2 Require Export Bool Lazy Array Lazy FMap Fresh Control Ltac1.
+From Ltac2 Require Export Bool Lazy Array Lazy FMap Fresh Control Ltac1 Constr.
 
 Ltac2 dump_hyps () :=
   let hyps := Control.hyps () in
@@ -45,14 +45,54 @@ Ltac2 dump_state () :=
 Ltac2 Notation "dump_state" := dump_state ().
 Ltac2 Notation dump := dump_state.
 
+Ltac2 Notation tac1(thunk(self)) "|||" tac2(thunk(self)) : 6 :=
+  orelse
+    (fun () =>
+        (* Attempt to run the first tactic *)
+        tac1 ()
+    )
+    (fun (_e : exn) =>
+        (* If the first tactic fails, run the second one *)
+        tac2 ()
+    ).
+
+Ltac2 can_pretype (ptm : preterm) : constr option :=
+  ((* Attempt to pretype using flags that disallow new evar creation.
+      Pretype.Flags.constr_flags has 'allow_evars' set to false by default. *)
+    Some (Pretype.pretype Pretype.Flags.constr_flags Pretype.expected_without_type_constraint ptm)
+  ) ||| None.
+
+Ltac2 Notation "?!" opt_val(tactic(0)) :=
+  match opt_val with
+  | Some _ => true
+  | None => false
+  end.
+
+Example test_notation_and_can_pretype :
+  forall A (x y : A), True.
+Proof.
+  intros.
+  if (?! (can_pretype preterm:(x <> y)))
+  then fail
+  else apply I.
+Qed.
+
 (** [already_proven h] returns a boolean value on if the hypothesis "h" is already in the current hypotheses *)
-Ltac2 already_proven (h : constr) : bool :=
-  List.exist (fun (_, _, ty) => Constr.equal h ty) (Control.hyps ()).
+Ltac2 already_proven (h : preterm) : bool :=
+  (* first, we try to pretype it, if that fails, then obviously it doesn't already exist *)
+  match can_pretype h with
+  | Some h' =>
+    (* If we can pretype it, then we check if it exists in the current hypotheses *)
+    List.exist (fun (_, _, ty) => Constr.equal h' ty) (Control.hyps ())
+  | None =>
+    (* If we can't pretype it, then we check if it exists in the current hypotheses *)
+    false
+  end.
 
 Example test_already_proven : forall A (x y : A), x = y -> True.
 Proof.
   intros.
-  if (already_proven '(x = y))
+  if (already_proven preterm:(x = y))
   then apply I
   else fail.
 Qed.
