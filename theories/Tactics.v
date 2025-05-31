@@ -9,6 +9,56 @@ From ExtLib Require Export Tactics BoolTac.
 From Ltac2 Require Export Ltac2 Printf Pstring Notations.
 From Ltac2 Require Export Bool Lazy Array Lazy FMap Fresh Control Ltac1.
 
+Ltac2 dump_hyps () :=
+  let hyps := Control.hyps () in
+  List.iter 
+    (fun (var, val, ty) => 
+      match val with
+      | Some v => 
+        printf "%I := %t = %t" var v ty
+      | None =>
+        printf "%I : %t" var ty
+      end)
+    hyps.
+
+Ltac2 dump_goal () :=
+  let goal := Control.goal () in
+  printf "%t" goal.
+
+(** [dump] prints out the current goal and context. *)
+
+(** [dump_state] prints out the current goal and context. *)
+
+(* Prints out the current state*)
+Ltac2 dump_state () :=
+  (* Dump it for all hyps *)
+  printf "========================";
+  printf "Dumping State";
+  printf "========================";
+  Control.enter (fun () => 
+    printf "========================";
+    dump_hyps ();
+    printf "------------------------";
+    dump_goal ();
+    printf "========================"
+  ).
+Ltac2 Notation "dump_state" := dump_state ().
+Ltac2 Notation dump := dump_state.
+
+(** [already_proven h] returns a boolean value on if the hypothesis "h" is already in the current hypotheses *)
+Ltac2 already_proven (h : constr) : bool :=
+  List.exist (fun (_, _, ty) => Constr.equal h ty) (Control.hyps ()).
+
+Example test_already_proven : forall A (x y : A), x = y -> True.
+Proof.
+  intros.
+  if (already_proven '(x = y))
+  then apply I
+  else fail.
+Qed.
+
+(** [already_proven_hyp h] returns a boolean value on if the hypothesis "h" is already in the current hypotheses *)
+
 (** [clean] removes any hypothesis of the shape [X = X]. *)
 Ltac2 Notation "clean" :=
   repeat (

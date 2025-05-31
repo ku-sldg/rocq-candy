@@ -29,32 +29,43 @@ Proof.
   ff r; destruct (eqb a b) eqn:E; ff r.
 Qed.
 
-Ltac destEq t1 t2 :=
-  let H := fresh "Heq" in
-  destruct (eqb t1 t2) eqn:H;
-  try rewrite H in *;
-  [ rewrite eqb_eq in * | rewrite eqb_neq in *]; 
-  subst; eauto.
+Ltac2 destEq (t1 : constr) (t2 : constr) :=
+  let h := in_goal @Heq in
+  destruct (@eqb _ _ $t1 $t2) eqn:$h >
+  [ 
+    let h := Control.hyp h in
+    try (rewrite $h in *); 
+    rewrite eqb_eq in * 
+    | 
+    let h := Control.hyp h in
+    try (rewrite $h in *); 
+    rewrite eqb_neq in *
+  ];
+  subst; 
+  eauto.
 
 Ltac2 Notation "destEq" 
-  t1(preterm)
-  t2(preterm)
+  t1(constr)
+  t2(constr)
   :=
-  ltac1:(t1 t2 |- 
-    destEq t1 t2)
-  (Ltac1.of_preterm t1) (Ltac1.of_preterm t2).
+  destEq t1 t2.
 
-Ltac break_eqs :=
+Ltac2 break_eqs () :=
   repeat (
-    match goal with
-    | H : context [ eqb ?p1 ?p1 ] |- _ =>
-        erewrite eqb_refl in H
-    | |- context [ eqb ?p1 ?p1 ] =>
-        erewrite eqb_refl
-    | H : context [ eqb ?p1 ?p2 ] |- _ =>
-        destEq p1 p2
-    | |- context [ eqb ?p1 ?p2 ] =>
-        destEq p1 p2
+    (* First, do the coarse but powerful reductions *)
+    repeat (
+      match! goal with
+      | [ h : context [ eqb ?_p1 ?_p1 ] |- _ ] =>
+          erewrite eqb_refl in $h; subst_max
+      | [ |- context [ eqb ?_p1 ?_p1 ] ] =>
+          erewrite eqb_refl; try reflexivity
+      | [ _h : context [ eqb ?p1 ?p2 ] |- _ ] =>
+          destEq $p1 $p2
+      | [ |- context [ eqb ?p1 ?p2 ] ] =>
+          destEq $p1 $p2
+      end
+    );
+    (* Next, we want to just do a more aggressive destruction *)
     (*
     NOTE: In theory, this is great... but it can really explode quickly.
     For example
@@ -63,25 +74,26 @@ Ltac break_eqs :=
     where underneath A == B, we end up with a big issue.
     We don't really want to do it for this case (a lot of ID-esque types are all the same, but shouldn't really be considered comparable).
     *)
-
-    | p1 : ?T, p2 : ?T, HT : EqClass ?T |- _ => 
-        tryif (
-          (* If we already have NEQ hyps, don't make more *)
-          match goal with
-          | HP : p1 <> p2 |- _ => idtac
-          end)
-        then fail
-        else destEq p1 p2
-    end;
-    ltac2:(subst_max;
+    repeat (match! goal with
+    | [ p1 : ?_t, p2 : ?_t, _ht : EqClass ?_t 
+        |- context [ ?p1' = ?p2' ] ] =>
+      (* If it is somehow relevant to our goal that these two are equal.*)
+      (
+      let p1 := Control.hyp p1 in
+      let p2 := Control.hyp p2 in
+      if Bool.neg (Constr.equal p1 p1' && Constr.equal p2 p2') 
+      then fail
+      else
+        if (already_proven '($p1 <> $p2)%type)
+        then (* skip, we already have a lemma disproving *) fail
+        else (destEq $p1 $p2))
+    end);
+    subst_max;
     full_do_bool;
-    try (simple congruence 1))
+    try (simple congruence 1)
   ).
 
-Ltac2 Notation "break_eqs" :=
-  ltac1:(break_eqs).
-Ltac2 Notation break_eqs :=
-  break_eqs.
+Ltac2 Notation "break_eqs" := break_eqs ().
 
 Ltac2 Notation eq_crush :=
   eauto;
@@ -184,6 +196,6 @@ Defined.
 
 Global Instance EqClass_impl_EqDec (A : Type) `{H : EqClass A} : EqDec A eq.
 intros x y.
-eq_crush.
-left; reflexivity.
+ltac1:(unfold "===").
+ff e.
 Defined.
