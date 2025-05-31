@@ -762,9 +762,7 @@ Ltac2 Notation "prep_induction"
 (** [injc H] performs [injection] on [H], then clears [H] and
     simplifies the context. *)
 Ltac2 injc (h : ident) :=
-  let h := Control.hyp h in
-  (* Perform injection *)
-  injection $h; 
+  ltac1:(h |- injection h) (Ltac1.of_ident h);
   clear h; intros; subst_max.
 
 (** [find_injection] looks for an [injection] in the context and
