@@ -75,3 +75,9 @@ ref (
   )
 ); try congruence.
 Qed.
+
+Global Instance DecEq_like {A} 
+  `{HDA : forall x y : A, {x = y} + {x <> y}} :
+  DecEq A := {
+  dec_eq := HDA
+}.

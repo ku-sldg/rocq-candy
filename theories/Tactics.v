@@ -873,7 +873,12 @@ Ltac2 Notation "find_contra" :=
   match! goal with
   | [ h : False |- _ ] =>
     ltac1:(h |- exfalso; exact h) (Ltac1.of_ident h)
-  end.
+  end;
+  try (match! goal with
+  | [ |- _ + _ ] =>
+    right; intros;
+    try (intros ?); congruence
+  end).
 Ltac2 Notation find_contra := find_contra.
 
 (* Simplification hammer.  Used at beginning of many proofs in this 
