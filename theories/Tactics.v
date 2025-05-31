@@ -675,7 +675,7 @@ Ltac2 Notation find_eapply_hyp_hyp := find_eapply_hyp_hyp.
 (** [find_eapply_lem_hyp lem] finds a hypothesis where [lem] can be
     [eapply]-ed, and performes the application. *)
 Ltac2 Notation "find_eapply_lem_hyp" 
-  lem(ident) :=
+  lem(open_constr) :=
   match! goal with
   | [ h : _ |- _ ] => 
     eapply $lem in $h
@@ -869,6 +869,13 @@ Ltac2 tac_list_thunk tac_list :=
         tacs
   end.
 
+Ltac2 Notation "find_contra" :=
+  match! goal with
+  | [ h : False |- _ ] =>
+    ltac1:(h |- exfalso; exact h) (Ltac1.of_ident h)
+  end.
+Ltac2 Notation find_contra := find_contra.
+
 (* Simplification hammer.  Used at beginning of many proofs in this 
    development.  Conservative simplification, break matches, 
    invert on resulting goals *)
@@ -895,7 +902,8 @@ Ltac2 rec ff tac :=
       try (congruence);
       simpl in *;
       subst_max; eauto;
-      try (congruence)
+      try (congruence);
+      try (find_contra)
       (* Too expensive in general
       ; try solve_by_inversion *)
     );
