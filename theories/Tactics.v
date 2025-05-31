@@ -873,8 +873,8 @@ Ltac2 Notation "find_contra" :=
   match! goal with
   | [ h : False |- _ ] =>
     ltac1:(h |- exfalso; exact h) (Ltac1.of_ident h)
-  end;
-  try (match! goal with
+  end |||
+  (match! goal with
   | [ |- { _ } + { _ } ] =>
     right; intros;
     try (intros ?); congruence
