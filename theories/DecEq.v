@@ -8,8 +8,10 @@ Authors:  Adam Petz, ampetz@ku.edu
 From Stdlib Require Import Setoid String List Decidable.
 From RocqCandy Require Import Tactics.
 
+Definition IDecEq (A : Type) := forall v1 v2 : A, {v1 = v2} + {v1 <> v2}.
+
 Class DecEq (A : Type) := {
-  dec_eq : forall x y : A, {x = y} + {x <> y}
+  dec_eq : IDecEq A
 }.
 
 Global Instance DecEq_string : DecEq string := {
@@ -22,8 +24,10 @@ Global Instance DecEq_nat : DecEq nat := {
 
 Import ListNotations.
 
-Fixpoint list_eq {A} `{DecEq A} (l1 l2 : list A) : {l1 = l2} + {l1 <> l2}.
+Global Instance DecEq_list {A} `{HD : DecEq A} : DecEq (list A).
 ref (
+  Build_DecEq _
+  (fix F l1 l2 :=
   match l1, l2 with
   | [], [] => left eq_refl
   | [], _ => right _
@@ -31,19 +35,15 @@ ref (
   | x1 :: xs1, x2 :: xs2 => 
     match dec_eq x1 x2 with
     | left Heq => 
-      match list_eq _ _ xs1 xs2 with
+      match F xs1 xs2 with
       | left Heq' => left _
       | right Hneq => right _
       end
     | right Hneq => right _
     end
-  end
+  end)
 ); try congruence.
 Qed.
-
-Global Instance DecEq_list {A} `{HD : DecEq A} : DecEq (list A) := {
-  dec_eq := list_eq
-}.
 
 Global Instance DecEq_option {A} `{HD : DecEq A} : DecEq (option A).
 ref (
@@ -76,8 +76,23 @@ ref (
 ); try congruence.
 Qed.
 
-Global Instance DecEq_like {A} 
-  `{HDA : forall x y : A, {x = y} + {x <> y}} :
-  DecEq A := {
-  dec_eq := HDA
-}.
+Global Instance DecEq_sum {A B} `{DA : DecEq A} `{DB : DecEq B} : DecEq (A + B).
+ref (
+  Build_DecEq _
+  (fun p1 p2 => 
+    match p1, p2 with
+    | inl x1, inl x2 => 
+      match dec_eq x1 x2 with
+      | left HDA => left _
+      | _ => right _
+      end
+    | inr x1, inr x2 => 
+      match dec_eq x1 x2 with
+      | left HDA => left _
+      | _ => right _
+      end
+    | _, _ => right _
+    end
+  )
+); try congruence.
+Qed.

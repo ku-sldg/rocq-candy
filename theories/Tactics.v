@@ -4,8 +4,6 @@ We have locally modified this a great deal to add tactics that are useful for ou
 From Stdlib Require Import Bool String List Ascii Lia.
 Import ListNotations.
 
-From ExtLib Require Export Tactics BoolTac.
-
 From Ltac2 Require Export Ltac2 Printf Pstring Notations.
 From Ltac2 Require Export Bool Lazy Array Lazy FMap Fresh Control Ltac1 Constr.
 
@@ -72,7 +70,7 @@ Example test_notation_and_can_pretype :
   forall A (x y : A), True.
 Proof.
   intros.
-  if (?! (can_pretype preterm:(x <> y)))
+  if (?! (can_pretype preterm:(x <> z)))
   then fail
   else apply I.
 Qed.
@@ -802,24 +800,45 @@ Ltac2 Notation "break_iff" :=
 
 Ltac2 Notation break_iff := break_iff.
 
-Ltac2 Notation "do_bool" := ltac1:(do_bool).
-
-Ltac2 Notation "full_do_bool" :=
+Ltac2 Notation "do_bool" :=
   intros; break_logic_hyps;
-  do_bool;
-  (* Do bool from extlib does well on hyps, but not goals *)
+  (* Unfold all the bool notations *)
   repeat 
     (match! goal with
+    (* Match hyps *)
+    | [ h : context [andb ?_x ?_y = true] |- _ ] => 
+      erewrite andb_true_iff in $h; 
+      let h := Control.hyp h in
+      destruct $h; eauto
+    | [ h : context [andb ?_x ?_y = false] |- _ ] => 
+      erewrite andb_false_iff in $h; 
+      let h := Control.hyp h in
+      destruct $h; eauto
+    | [ h : context [orb ?_x ?_y = true] |- _ ] => 
+      erewrite orb_true_iff in $h; 
+      let h := Control.hyp h in
+      destruct $h; eauto
+    | [ h : context [orb ?_x ?_y = false] |- _ ] => 
+      erewrite orb_false_iff in $h; 
+      let h := Control.hyp h in
+      destruct $h; eauto
+    (* Match goal *)
     | [ |- context [andb ?_x ?_y = true] ] => 
-      erewrite andb_true_iff; split; do_bool
+      erewrite andb_true_iff; split; eauto
     | [ |- context [andb ?_x ?_y = false] ] => 
-      erewrite andb_false_iff; split; do_bool
+      erewrite andb_false_iff; split; eauto
     | [ |- context [orb ?_x ?_y = true] ] => 
-      erewrite orb_true_iff; do_bool; eauto
+      erewrite orb_true_iff; eauto
     | [ |- context [orb ?_x ?_y = false] ] => 
-      erewrite orb_false_iff; do_bool; eauto
+      erewrite orb_false_iff; eauto
     end; try (simple congruence 1));
   try (simple congruence 1).
+
+Example test_do_bool : forall x y z : bool,
+  ((x && y) || z) = true -> (x = true /\ y = true) \/ z = true.
+Proof.
+  do_bool.
+Qed.
 
 Ltac2 Notation max_RW :=
   simpl in *;
@@ -998,3 +1017,12 @@ Ltac2 Notation cong := congruence.
 
 Ltac2 Notation "intuition" := ltac1:(intuition).
 Ltac2 Notation intuition := intuition.
+
+Ltac2 Notation "ar"
+  dbs(opt(seq("with", hintdb)))
+  cl(opt(clause))
+  tac(opt(seq("by", thunk(tactic))))
+  :=
+  let db := default_list (default_db dbs) in
+  let cl := default_on_concl cl in
+  try (Std.autorewrite true tac db cl).
