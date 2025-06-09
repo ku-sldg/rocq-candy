@@ -9,24 +9,7 @@ From Stdlib Require Export
   ZArith.
 Export ListNotations.
 
-(* Exporting finite assoc list based maps *)
-From ExtLib Require Export RelDec Maps FMapAList.
-
-From RocqCandy Require Export Stringifiable Tactics DecEq ResultMonad.
-
-Global Instance RelDec_EqDec T f `{EqDec T f} : RelDec f := {
-  rel_dec := fun x y => if equiv_dec x y then true else false
-}.
-
-Global Instance RelDec_EqClass T `{DT : DecEq T} : @RelDec T eq := {
-  rel_dec := fun x y => if dec_eq x y then true else false
-}.
-
-Definition FMap K V `{DecEq K} := alist K V.
-Global Instance Map_FMap K V `{HD : DecEq K} : Map K V (@FMap K V HD).
-eapply Map_alist.
-typeclasses_eauto.
-Defined.
+From RocqCandy Require Export Stringifiable Tactics DecEq ResultMonad Maps.
 
 (* Common EqDec Instances we may need *)
 Global Instance EqDec_string : EqDec string eq := string_dec.
