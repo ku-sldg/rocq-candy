@@ -200,4 +200,8 @@ Section Maps.
   Qed.
   Hint Resolve NoDup_join : maps.
 
+  Global Instance DecEq_Map `{HV : DecEq V} : DecEq (Map K V).
+  typeclasses_eauto.
+  Defined.
+
 End Maps.
