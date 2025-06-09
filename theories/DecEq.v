@@ -43,7 +43,7 @@ ref (
     end
   end)
 ); try congruence.
-Qed.
+Defined.
 
 Global Instance DecEq_option {A} `{HD : DecEq A} : DecEq (option A).
 ref (
@@ -60,7 +60,7 @@ ref (
     end
   )
 ); try congruence.
-Qed.
+Defined.
 
 Global Instance DecEq_pair {A B} `{DA : DecEq A} `{DB : DecEq B} : DecEq (A * B).
 ref (
@@ -74,7 +74,7 @@ ref (
     end
   )
 ); try congruence.
-Qed.
+Defined.
 
 Global Instance DecEq_sum {A B} `{DA : DecEq A} `{DB : DecEq B} : DecEq (A + B).
 ref (
@@ -95,4 +95,4 @@ ref (
     end
   )
 ); try congruence.
-Qed.
+Defined.
