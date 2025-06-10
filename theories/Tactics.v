@@ -153,23 +153,14 @@ Ltac2 Notation "invc"
   pat(opt(seq("as", intropattern)))
   ids(opt(seq("in", list1(ident)))) :=
   Std.inversion Std.FullInversionClear arg pat ids;
-  subst_max; 
-  match arg with
-  | Std.ElimOnIdent h => try (clear $h)
-  | _ => ()
-  end.
+  subst_max.
 
 Ltac2 Notation "invcs"
   arg(destruction_arg) 
   pat(opt(seq("as", intropattern)))
   ids(opt(seq("in", list1(ident)))) :=
   Std.inversion Std.FullInversionClear arg pat ids;
-  subst_max;
-  match arg with
-  | Std.ElimOnIdent h => try (clear $h)
-  | _ => ()
-  end;
-   simpl in *.
+  subst_max; simpl in *.
 
 (** [break_if] finds instances of [if _ then _ else _] in your goal or
     context, and destructs the discriminee, while retaining the
