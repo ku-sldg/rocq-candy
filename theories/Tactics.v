@@ -134,12 +134,11 @@ Qed.
     inverted hypothesis.  Sometimes, you also want to perform
     post-simplification.  [invcs] extends [invc] and tries to simplify
     what it can. *)
-Ltac2 Notation "inv"
-  arg(destruction_arg) 
-  pat(opt(seq("as", intropattern)))
-  ids(opt(seq("in", list1(ident)))) :=
-  Std.inversion Std.FullInversion arg pat ids;
-  subst_max.
+Ltac inv H := inversion H; ltac2:(subst_max).
+Ltac invc H := inv H; clear H.
+Ltac invcs H := invc H; simpl in *.
+
+Ltac2 Notation "inv" arg(ident) := ltac1:(H |- inv H) (Ltac1.of_ident arg).
 
 Example test_inv : forall A (x y z : A), x = y -> y = z -> x = z.
 Proof.
@@ -148,38 +147,9 @@ Proof.
   reflexivity.
 Qed.
 
-Ltac2 Notation "invc"
-  arg(destruction_arg) 
-  pat(opt(seq("as", intropattern)))
-  ids(opt(seq("in", list1(ident)))) :=
-  match arg with
-  | Std.ElimOnIdent h => 
-    Std.inversion Std.FullInversion arg pat ids; subst_max;
-    try (clear $h)
-  | Std.ElimOnConstr f =>
-    let (c, _b) := f () in
-    Std.inversion Std.FullInversion arg pat ids; subst_max;
-    ltac1:(c |- clear c) (Ltac1.of_constr c)
-  | Std.ElimOnAnonHyp _ =>
-    Std.inversion Std.FullInversionClear arg pat ids; subst_max
-  end.
+Ltac2 Notation "invc" arg(ident) := ltac1:(H |- invc H) (Ltac1.of_ident arg).
 
-Ltac2 Notation "invcs"
-  arg(destruction_arg) 
-  pat(opt(seq("as", intropattern)))
-  ids(opt(seq("in", list1(ident)))) :=
-  match arg with
-  | Std.ElimOnIdent h => 
-    Std.inversion Std.FullInversion arg pat ids; subst_max;
-    try (clear $h)
-  | Std.ElimOnConstr f =>
-    let (c, _b) := f () in
-    Std.inversion Std.FullInversion arg pat ids; subst_max;
-    ltac1:(c |- clear c) (Ltac1.of_constr c)
-  | Std.ElimOnAnonHyp _ =>
-    Std.inversion Std.FullInversionClear arg pat ids; subst_max
-  end;
-  simpl in *.
+Ltac2 Notation "invcs" arg(ident) := ltac1:(H |- invcs H) (Ltac1.of_ident arg).
 
 (** [break_if] finds instances of [if _ then _ else _] in your goal or
     context, and destructs the discriminee, while retaining the
@@ -557,18 +527,12 @@ Ltac2 Notation "find_reverse_rewrite" :=
 (** [find_inversion] find a symmetric equality and performs [invc] on it. *)
 Ltac2 Notation "find_inversion" :=
   match! goal with
-  | [ h : ?_x _ = ?_x _ |- _ ] => 
-    let h := Control.hyp h in invc $h
-  | [ h : ?_x _ _ = ?_x _ _ |- _ ] => 
-    let h := Control.hyp h in invc $h
-  | [ h : ?_x _ _ _ = ?_x _ _ _ |- _ ] => 
-    let h := Control.hyp h in invc $h
-  | [ h : ?_x _ _ _ _ = ?_x _ _ _ _ |- _ ] => 
-    let h := Control.hyp h in invc $h
-  | [ h : ?_x _ _ _ _ _ = ?_x _ _ _ _ _ |- _ ] => 
-    let h := Control.hyp h in invc $h
-  | [ h : ?_x _ _ _ _ _ _ = ?_x _ _ _ _ _ _ |- _ ] => 
-    let h := Control.hyp h in invc $h
+  | [ h : ?_x _ = ?_x _ |- _ ] => invc $h
+  | [ h : ?_x _ _ = ?_x _ _ |- _ ] => invc $h
+  | [ h : ?_x _ _ _ = ?_x _ _ _ |- _ ] => invc $h
+  | [ h : ?_x _ _ _ _ = ?_x _ _ _ _ |- _ ] => invc $h
+  | [ h : ?_x _ _ _ _ _ = ?_x _ _ _ _ _ |- _ ] => invc $h
+  | [ h : ?_x _ _ _ _ _ _ = ?_x _ _ _ _ _ _ |- _ ] => invc $h
   end.
 
 Ltac2 Notation find_inversion := find_inversion.
@@ -606,8 +570,7 @@ Ltac2 Notation break_let := break_let.
     goal into two. *)
 Ltac2 Notation "break_or_hyp" :=
   match! goal with
-  | [ h : _ \/ _ |- _ ] => 
-    let h := Control.hyp h in invc $h
+  | [ h : _ \/ _ |- _ ] => invc $h
   end.
 Ltac2 Notation break_or_hyp := break_or_hyp.
 
