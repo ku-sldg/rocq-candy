@@ -36,6 +36,8 @@ Module Result.
       (at level 98, left associativity).
     Hint Unfold ret : core.
     Hint Unfold raise : core.
+    Hint Unfold bind : core.
+    Hint Unfold unwrap_or : core.
     Hint Unfold Result.ret : core.
     Hint Unfold Result.raise : core.
   End Notation.
