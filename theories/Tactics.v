@@ -973,8 +973,10 @@ Ltac2 ff_core tac_list :=
   ).
 
 Ltac2 Notation "ff" 
-  tacs(opt(list0(tactic(0), ","))) :=
-  ff_core tacs.
+  tacs(opt(list0(tactic(0), ","))) 
+  :=
+  (* Default timeout of 30 seconds *)
+  Control.timeout 30 (fun () => ff_core tacs).
 
 Ltac2 rec target_break_match
   (h : ident) :=
