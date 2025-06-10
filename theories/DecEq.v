@@ -14,6 +14,8 @@ Class DecEq (A : Type) := {
   dec_eq : IDecEq A
 }.
 
+Notation "'?!' x y" := (if dec_eq x y then true else false) (at level 70, no associativity).
+
 Global Instance DecEq_string : DecEq string := {
   dec_eq := string_dec
 }.

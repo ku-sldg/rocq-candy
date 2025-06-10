@@ -33,7 +33,7 @@ Module Result.
       (bind c1 (fun x => match x with pat => c2 end))
       (at level 61, pat pattern, c1 at next level, right associativity).
     Notation "x '<?>' y" := (unwrap_or x y)
-      (at level 10, left associativity).
+      (at level 98, left associativity).
     Hint Unfold ret : core.
     Hint Unfold raise : core.
     Hint Unfold Result.ret : core.
