@@ -156,8 +156,10 @@ Ltac2 Notation "invc"
   | Std.ElimOnIdent h => 
     Std.inversion Std.FullInversion arg pat ids; subst_max;
     try (clear $h)
-  | Std.ElimOnConstr _ =>
-    Std.inversion Std.FullInversionClear arg pat ids; subst_max
+  | Std.ElimOnConstr f =>
+    let (c, _b) := f () in
+    Std.inversion Std.FullInversion arg pat ids; subst_max;
+    ltac1:(c |- clear c) (Ltac1.of_constr c)
   | Std.ElimOnAnonHyp _ =>
     Std.inversion Std.FullInversionClear arg pat ids; subst_max
   end.
@@ -168,10 +170,12 @@ Ltac2 Notation "invcs"
   ids(opt(seq("in", list1(ident)))) :=
   match arg with
   | Std.ElimOnIdent h => 
-    Std.inversion Std.FullInversionClear arg pat ids; subst_max;
+    Std.inversion Std.FullInversion arg pat ids; subst_max;
     try (clear $h)
-  | Std.ElimOnConstr _ =>
-    Std.inversion Std.FullInversionClear arg pat ids; subst_max
+  | Std.ElimOnConstr f =>
+    let (c, _b) := f () in
+    Std.inversion Std.FullInversion arg pat ids; subst_max;
+    ltac1:(c |- clear c) (Ltac1.of_constr c)
   | Std.ElimOnAnonHyp _ =>
     Std.inversion Std.FullInversionClear arg pat ids; subst_max
   end;
