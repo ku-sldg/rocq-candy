@@ -135,9 +135,6 @@ Qed.
     post-simplification.  [invcs] extends [invc] and tries to simplify
     what it can. *)
 Ltac inv H := inversion H; ltac2:(subst_max).
-Ltac invc H := inv H; clear H.
-Ltac invcs H := invc H; simpl in *.
-
 Ltac2 Notation "inv" arg(ident) := ltac1:(H |- inv H) (Ltac1.of_ident arg).
 
 Example test_inv : forall A (x y z : A), x = y -> y = z -> x = z.
@@ -147,9 +144,13 @@ Proof.
   reflexivity.
 Qed.
 
-Ltac2 Notation "invc" arg(ident) := ltac1:(H |- invc H) (Ltac1.of_ident arg).
+Ltac2 Notation "invc" arg(ident) := 
+  ltac1:(H |- inv H) (Ltac1.of_ident arg); 
+  clear $arg.
 
-Ltac2 Notation "invcs" arg(ident) := ltac1:(H |- invcs H) (Ltac1.of_ident arg).
+Ltac2 Notation "invcs" arg(ident) := 
+  ltac1:(H |- inv H) (Ltac1.of_ident arg);
+  clear $arg; simpl in *.
 
 (** [break_if] finds instances of [if _ then _ else _] in your goal or
     context, and destructs the discriminee, while retaining the
