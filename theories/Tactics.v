@@ -579,6 +579,8 @@ Ltac2 Notation break_or_hyp := break_or_hyp.
     possibly-quantified hypotheses into other hypotheses or the
     goal. *)
 Ltac2 Notation "find_higher_order_rewrite" :=
+  Control.enter (
+  fun () =>
   match! goal with
   | [ h : _ = _ |- _ ] => 
     let h := Control.hyp h in rewrite $h in *
@@ -586,7 +588,7 @@ Ltac2 Notation "find_higher_order_rewrite" :=
     let h := Control.hyp h in rewrite $h in *
   | [ h : forall _ _, _ = _ |- _ ] => 
     let h := Control.hyp h in rewrite $h in *
-  end.
+  end).
 
 Ltac2 Notation find_higher_order_rewrite := find_higher_order_rewrite.
 
@@ -594,6 +596,8 @@ Ltac2 Notation find_higher_order_rewrite := find_higher_order_rewrite.
     possibly-quantified hypotheses into other hypotheses or the
     goal. *)
 Ltac2 Notation "find_reverse_higher_order_rewrite" :=
+  Control.enter (
+  fun () =>
   match! goal with
   | [ h : _ = _ |- _ ] => 
     let h := Control.hyp h in rewrite <- $h in *
@@ -601,7 +605,7 @@ Ltac2 Notation "find_reverse_higher_order_rewrite" :=
     let h := Control.hyp h in rewrite <- $h in *
   | [ h : forall _ _, _ = _ |- _ ] =>
     let h := Control.hyp h in rewrite <- $h in *
-  end.
+  end).
 
 Ltac2 Notation find_reverse_higher_order_rewrite := find_reverse_higher_order_rewrite.
 
@@ -617,6 +621,8 @@ Ltac2 Notation "find_apply_hyp_goal" :=
 (** [find_apply_hyp_hyp] finds a hypothesis which can be applied in
     another hypothesis, and performs the application. *)
 Ltac2 Notation "find_apply_hyp_hyp" :=
+  Control.enter (
+  fun () =>
   match! goal with
   | [ h : forall _, _ -> _,
       h' : _ |- _ ] =>
@@ -626,11 +632,13 @@ Ltac2 Notation "find_apply_hyp_hyp" :=
       h' : _ |- _ ] =>
     let h := Control.hyp h in
     apply $h in $h'; eauto > [()]
-  end.
+  end).
 
 Ltac2 Notation find_apply_hyp_hyp := find_apply_hyp_hyp.
 
 Ltac2 Notation "find_eapply_hyp_hyp" :=
+  Control.enter (
+  fun () =>
   match! goal with
   | [ h : forall _, _ -> _,
       h' : _ |- _ ] =>
@@ -640,7 +648,7 @@ Ltac2 Notation "find_eapply_hyp_hyp" :=
       h' : _ |- _ ] =>
     let h := Control.hyp h in
     eapply $h in $h'; eauto > [()]
-  end.
+  end).
 
 Ltac2 Notation find_eapply_hyp_hyp := find_eapply_hyp_hyp.
 
@@ -648,10 +656,12 @@ Ltac2 Notation find_eapply_hyp_hyp := find_eapply_hyp_hyp.
     [eapply]-ed, and performes the application. *)
 Ltac2 Notation "find_eapply_lem_hyp" 
   lem(open_constr) :=
+  Control.enter (
+  fun () =>
   match! goal with
   | [ h : _ |- _ ] => 
     eapply $lem in $h
-  end.
+  end).
 
 (** [isVar t] succeeds if term [t] is a variable in the context. *)
 Ltac isVar t :=
