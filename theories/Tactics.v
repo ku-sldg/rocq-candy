@@ -451,11 +451,8 @@ Ltac2 Notation "find_rewrite" :=
   | [ h : ?_x = _, h' : context [ ?_x ] |- _ ] => 
     rew_in $h $h'
   | [ h : ?_x = _, h' : ?_x = _ |- _ ] => 
-    dump;
-    printf "unique case! please report:\n
-    Rewriting %I in %I" h h'; 
-    rew_in $h $h';
-    dump
+    (* TODO: Determine why this happens sometimes? I feel like subst should do this instead! *)
+    rew_in $h $h'
   | [ h : ?_x _ = _, h' : ?_x _ = _ |- _ ] => 
     rew_in $h $h'
   | [ h : ?_x _ _ = _, h' : ?_x _ _ = _ |- _ ] => 
