@@ -4,12 +4,12 @@ From Stdlib Require Export
   Program.Utils 
   Program.Basics 
   Setoid
-  List
   Lia
   ZArith.
-Export ListNotations.
 
 From RocqCandy Require Export Stringifiable Tactics DecEq ResultMonad Maps.
+From Stdlib Require Export List.
+Export ListNotations.
 
 (* Common EqDec Instances we may need *)
 Global Instance EqDec_string : EqDec string eq := string_dec.
