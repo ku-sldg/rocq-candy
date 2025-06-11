@@ -1002,3 +1002,40 @@ Ltac2 Notation "ar"
   let db := default_list (default_db dbs) in
   let cl := default_on_concl cl in
   try (Std.autorewrite true tac db cl).
+
+
+(**
+ * [fresh_names_in_goal n basename] generates a list of [n] fresh identifiers
+ * that do not conflict with names currently in the goal or with each other.
+ * All generated names will have [basename] as their prefix.
+ *)
+Ltac2 rec fresh_names_in_goal (n : int) (basename : ident) (avoid : Fresh.Free.t) (acc : ident list) : ident list :=
+  if Int.le n 0 then
+    List.rev acc
+  else
+    let h := Fresh.fresh avoid basename in
+    fresh_names_in_goal (Int.sub n 1) basename 
+      (Free.union (Free.of_ids [h]) avoid) (h :: acc).
+
+(**
+ * A convenient wrapper to generate a list of [n] fresh hypothesis names.
+ *)
+Ltac2 fresh_hyps (n : int) (basename : string) : ident list :=
+  match Ident.of_string basename with
+  | None => throw_invalid_argument "fresh_hyps" "basename must be a valid identifier"
+  | Some name =>
+    (* Generate fresh names in the goal, avoiding conflicts with existing names *)
+    fresh_names_in_goal n name (Fresh.Free.of_goal ()) []
+  end.
+
+(**
+ * A variant of [fresh] that always generates a single fresh name.
+ *)
+Ltac2 fresh (basename : string) : ident :=
+  let avoid := Fresh.Free.of_goal () in
+  match Ident.of_string basename with
+  | None => throw_invalid_argument "fresh" "basename must be a valid identifier"
+  | Some basename_ident =>
+    (* Generate a single fresh name, avoiding conflicts with existing names *)
+    Fresh.fresh avoid basename_ident
+  end.
