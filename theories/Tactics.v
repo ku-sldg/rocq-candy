@@ -951,7 +951,7 @@ Ltac2 rec target_break_match
   lazy_match! Constr.type (Control.hyp h)with
   | context[match ?x with _ => _ end] => 
     let h' := Fresh.in_goal h in
-    destruct $x eqn:h'; 
+    destruct $x eqn:$h'; 
     try (find_injection);
     try (simple congruence 1); 
     try (target_break_match h');
