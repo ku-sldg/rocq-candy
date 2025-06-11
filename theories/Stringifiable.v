@@ -1,11 +1,11 @@
 From Stdlib Require Export String.
 Local Open Scope string_scope.
 From RocqCandy Require Import Tactics ResultMonad.
-Import Result.Notation.
+Import ResultNotation.
 
 Class Stringifiable (A : Type) := {
   to_string                   : A -> string ;
-  from_string                 : string -> (Result.t A string) ;
+  from_string                 : string -> (Result A string) ;
   canonical_stringification   : forall a, 
     from_string (to_string a) = res a 
 }.
