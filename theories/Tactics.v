@@ -655,11 +655,13 @@ Ltac2 Notation find_eapply_hyp_hyp := find_eapply_hyp_hyp.
 (** [find_eapply_lem_hyp lem] finds a hypothesis where [lem] can be
     [eapply]-ed, and performes the application. *)
 Ltac2 Notation "find_eapply_lem_hyp" 
-  lem(open_constr) :=
+  lem(preterm) :=
+  (* NOTE: We have to parse a preterm, then pretyp within an Enter. This is due to Ltac2's rejection of the possibility of the "lem" existing globally *)
   Control.enter (
   fun () =>
   match! goal with
   | [ h : _ |- _ ] => 
+    let lem := Constr.pretype lem in
     eapply $lem in $h
   end).
 
