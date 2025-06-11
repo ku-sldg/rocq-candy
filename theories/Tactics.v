@@ -1029,12 +1029,12 @@ Ltac2 fresh_hyps (n : int) (basename : string) : ident list :=
   end.
 
 (**
- * A variant of [fresh] that always generates a single fresh name.
+ * A variant of [fresh_hyp] that always generates a single fresh name.
  *)
-Ltac2 fresh (basename : string) : ident :=
+Ltac2 fresh_hyp (basename : string) : ident :=
   let avoid := Fresh.Free.of_goal () in
   match Ident.of_string basename with
-  | None => throw_invalid_argument "fresh" "basename must be a valid identifier"
+  | None => throw_invalid_argument "fresh_hyp" "basename must be a valid identifier"
   | Some basename_ident =>
     (* Generate a single fresh name, avoiding conflicts with existing names *)
     Fresh.fresh avoid basename_ident
