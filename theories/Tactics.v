@@ -451,8 +451,10 @@ Ltac2 Notation "find_rewrite" :=
   | [ h : ?_x = _, h' : context [ ?_x ] |- _ ] => 
     rew_in $h $h'
   | [ h : ?_x = _, h' : ?_x = _ |- _ ] => 
+    dump;
     printf "unique case! please report"; 
-    rew_in $h $h'
+    rew_in $h $h';
+    dump
   | [ h : ?_x _ = _, h' : ?_x _ = _ |- _ ] => 
     rew_in $h $h'
   | [ h : ?_x _ _ = _, h' : ?_x _ _ = _ |- _ ] => 
@@ -730,6 +732,10 @@ Ltac generalizeEverythingElse H :=
                  end |
                  revert x]
          end.
+
+Ltac2 Notation "generalizeEverythingElse"
+  h(ident) :=
+  ltac1:(h |- generalizeEverythingElse h) (Ltac1.of_ident h).
 
 (* [prep_induction H] prepares your goal to perform [induction] on [H] by:
    - remembering all concrete indices of [H] via equations;
