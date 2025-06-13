@@ -203,9 +203,10 @@ Module MapNotations.
 
   (* Define a map scope *)
   Declare Scope map_scope.
-  Notation "m '[' k ']'" := (lookup k m) (at level 2) : map_scope.
-  Notation "m '[' k ':=' v ']'" := (insert k v m) (at level 2) : map_scope.
+  Notation "m '![' k ']'" := (lookup k m) (at level 2) : map_scope.
+  Notation "m '![' k ':=' v ']'" := (insert k v m) (at level 2) : map_scope.
   Notation "m -- k" := (remove k m) (at level 50) : map_scope.
   Notation "m1 '+++' m2" := (join m1 m2) (at level 2) : map_scope.
 
 End MapNotations.
+Export MapNotations.
