@@ -19,7 +19,6 @@ depends: [
   "ocaml" { >= "4.12~" }
   "dune" {>= "3.17"}
   "coq" 
-  "coq-ext-lib" { >= "0.13.0" }
 ]
 
 tags: [

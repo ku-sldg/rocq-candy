@@ -1,9 +1,12 @@
 ; This file was generated from `meta.yml`, please do not edit manually.
 ; Follow the instructions on https://github.com/coq-community/templates to regenerate.
 
+(include_subdirs qualified)
+
 (coq.theory
  (name RocqCandy)
  (package rocq-candy)
- (theories ExtLib Stdlib Ltac2)
- (synopsis
-  "Snippets of nice and useful Rocq code utilized by the KU-SLDG Lab"))
+ 
+ 
+ (synopsis "Snippets of nice and useful Rocq code utilized by the KU-SLDG Lab"))
+

@@ -22,7 +22,6 @@ This library contains snippets of nice and useful Rocq code utilized by the KU-S
 - Compatible Coq versions: 8.20 later
 - Compatible OCaml versions: 4.12 or later
 - Additional dependencies:
-  - [ExtLib](https://github.com/coq-community/coq-ext-lib)
   - [Dune](https://dune.build) 3.17 or later
 - Related publication(s): none
 

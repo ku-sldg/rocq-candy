@@ -1001,6 +1001,10 @@ Ltac2 Notation "pps"
   xs(list0(constr, ",")) :=
   List.fold_left (fun _ x => pose_proof x None) () xs.
 
+Ltac2 Notation "clearbody" 
+  ids(list1(ident)) :=
+  Std.clearbody ids.
+
 Ltac2 Notation "ref" x(preterm) :=
   ltac1:(x |- refine x) (Ltac1.of_preterm x).
 

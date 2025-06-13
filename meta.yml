@@ -23,15 +23,12 @@ opam-file-version: "0.2.2"
 #   - name: "<Keyword1>"
 #   - name: "<Keyword2>"
 dependencies:
-  - description: "[ExtLib](https://github.com/coq-community/coq-ext-lib)"
-    opam:
-      name: "coq-ext-lib"
-      version: '{ >= "0.13.0" }'
-      lib_name: "ExtLib"
 ci_extra_repos:
   - description: "KU-SLDG Packages"
     name: "ku-sldg/opam-repo"
     url: "https://github.com/ku-sldg/opam-repo.git"
+
+coq_trans_deps_workaround: true
 
 ######################################################
 # NOTE: Stuff below this line you should not need to change
@@ -59,8 +56,8 @@ nix: false
 ci_test_dependants: false
 ci_extra_dev: false
 ci_cron_schedule: 0 0 * * 0 # Weekly at midnight sunday
-tested_coq_opam_versions:
-  - version: "8.20"
+tested_rocq_opam_versions:
+  - version: "9.0"
   # - version: "9.0"
   #   repo: "rocq/rocq-prover"
 
