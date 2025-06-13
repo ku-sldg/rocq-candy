@@ -50,11 +50,6 @@ Section Maps.
       else (k', v') :: remove k rest
     end.
 
-    (* Notations for convenience *)
-  Notation "m '[' k ']'" := (lookup k m) (at level 2).
-  Notation "m '[' k ':=' v ']'" := (insert k v m) (at level 2).
-  Notation "m -- k" := (remove k m) (at level 50).
-
   Fixpoint mapify (l : Map K V) : Map K V :=
     match l with
     | [] => empty
@@ -63,8 +58,6 @@ Section Maps.
 
   Definition join (m1 m2 : Map K V) : Map K V :=
     mapify (m1 ++ m2).
-
-  Notation "m1 '+++' m2" := (join m1 m2) (at level 2).
 
   (* Size of the map (number of key-value pairs) *)
   Definition size (m : Map K V) : nat := length m.
@@ -101,7 +94,7 @@ Section Maps.
 
   (* Basic lookup theorems *)
   Theorem lookup_empty : forall (k : K),
-    empty [ k ] = None.
+    lookup k empty = None.
   Proof.
     ff.
   Qed.
@@ -109,21 +102,21 @@ Section Maps.
 
   Theorem lookup_insert_neq : forall (k k' : K) (v : V) (m : Map K V),
     k <> k' -> 
-    (m [ k' := v ]) [ k ] = m [ k ].
+    lookup k (insert k' v m) = lookup k m.
   Proof.
     induction m; ff.
   Qed.
   Hint Rewrite -> lookup_insert_neq : maps.
 
   Theorem lookup_insert_eq : forall (k : K) (v : V) (m : Map K V),
-    (m [ k := v]) [ k] = Some v.
+    lookup k (insert k v m) = Some v.
   Proof.
     induction m; ff.
   Qed.
   Hint Rewrite -> lookup_insert_eq : maps.
 
   Theorem lookup_remove_eq : forall (m : Map K V) k,
-    (m -- k) [ k ] = None.
+    lookup k (remove k m) = None.
   Proof.
     induction m; ff.
   Qed.
@@ -131,7 +124,7 @@ Section Maps.
 
   Theorem lookup_remove_neq : forall (k k' : K) (m : Map K V),
     k <> k' -> 
-    (m -- k') [ k ] = m [ k ].
+    lookup k (remove k' m) = lookup k m.
   Proof.
     induction m; ff.
   Qed.
@@ -162,7 +155,7 @@ Section Maps.
   Qed.
 
   Theorem mapify_eq : forall (m : Map K V) (k : K),
-    (mapify m) [ k ] = m [ k ].
+    lookup k (mapify m) = lookup k m.
   Proof.
     induction m; ff a, r; 
     ar with maps by ff;
@@ -182,7 +175,7 @@ Section Maps.
   Hint Rewrite -> lookup_app : maps.
 
   Theorem lookup_eq : forall (l1 l2 : Map K V) (k : K),
-    lookup k (l1 +++ l2) = 
+    lookup k (mapify (l1 ++ l2)) = 
       match lookup k l1 with
       | None => lookup k l2
       | Some v => Some v
@@ -194,7 +187,7 @@ Section Maps.
   Hint Rewrite -> lookup_eq : maps.
 
   Theorem NoDup_join : forall (m1 m2 : Map K V),
-    NoDup (List.map fst (m1 +++ m2)).
+    NoDup (List.map fst (mapify (m1 ++ m2))).
   Proof.
     unfold join; ff; eapply NoDup_mapify.
   Qed.
@@ -205,3 +198,14 @@ Section Maps.
   Defined.
 
 End Maps.
+
+Module MapNotations.
+
+  (* Define a map scope *)
+  Declare Scope map_scope.
+  Notation "m '[' k ']'" := (lookup k m) (at level 2) : map_scope.
+  Notation "m '[' k ':=' v ']'" := (insert k v m) (at level 2) : map_scope.
+  Notation "m -- k" := (remove k m) (at level 50) : map_scope.
+  Notation "m1 '+++' m2" := (join m1 m2) (at level 2) : map_scope.
+
+End MapNotations.
