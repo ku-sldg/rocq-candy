@@ -100,6 +100,14 @@ Section Maps.
   Qed.
   Hint Resolve lookup_empty : maps.
 
+  Theorem lookup_impl_in : forall (k : K) (m : Map K V) (v : V),
+    lookup k m = Some v -> 
+    In (k, v) m.
+  Proof.
+    induction m; ff.
+  Qed.
+  Hint Resolve lookup_impl_in : maps.
+
   Theorem lookup_insert_neq : forall (k k' : K) (v : V) (m : Map K V),
     k <> k' -> 
     lookup k (insert k' v m) = lookup k m.

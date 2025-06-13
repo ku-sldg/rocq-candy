@@ -1,7 +1,7 @@
 From Stdlib Require Export String.
 From Stdlib Require Import Ascii.
 Local Open Scope string_scope.
-From RocqCandy Require Import Tactics ResultMonad SPropTools.
+From RocqCandy Require Import Tactics ResultMonad SPropTools IndSchemes.
 Import ResultNotation.
 
 Class Stringifiable (A : Type) := {
@@ -75,61 +75,6 @@ Module Nat_Stringification.
     induction n; ff; try find_contra;
     right; intro HC; inv HC; inv unbox.
   Defined.
-
-  Lemma nat_modulo_eq : forall n k,
-    k <> 1 -> 
-    n < k ->
-    n = Nat.modulo n k.
-  Proof.
-    intros.
-    pp (PeanoNat.Nat.mod_unique n k 0 n).
-    lia.
-  Qed.
-  
-  Definition nat_div_mod_ind (k : nat) 
-    `{HK : k <> 1}
-    (P : nat -> Prop)
-    (* So long as we can handle every "n" s.t. "n % k == l" *)
-    (* And any "n" s.t. "n / k" *)
-    (fMod : forall n, P (Nat.modulo n k))
-    (fModDiv : forall n,
-      P (Nat.modulo n k) ->
-      P (Nat.div n k) ->
-      P n) :
-   forall n, P n.
-  Proof.
-    ref (Fix PeanoNat.Nat.lt_wf_0 _ (fun n F => _)).
-    assert (n < k \/ n >= k) as [Hlt | Hge] by lia.
-    - (* Case: n < k *)
-      (* We can just apply a Modulo *)
-      assert (n = Nat.modulo n k) by (eapply nat_modulo_eq; ff).
-      rewrite H.
-      eapply fMod.
-    - (* Case: n >= k *)
-      (* We can apply the division and modulo functions *)
-      assert (fModDivNext : forall n0 : nat, P (Nat.div n0 k) -> P n0) by ff.
-      assert (Nat.div n k < k \/ Nat.div n k >= k) as [Hdiv_lt | Hdiv_ge] by lia.
-      * (* Case: (n // k) < k *)
-        (* Just another base case *)
-        assert (Nat.div n k = Nat.modulo (Nat.div n k) k) by (eapply nat_modulo_eq; ff).
-        eapply (fModDiv _ (fMod _)).
-        rewrite H.
-        eapply fMod.
-      * (* Case: (n // k) >= k *)
-        (* This is the truly recursive case *)
-        assert (k = 0 \/ k = 1 \/ k > 1) as [Hk_eq_0 | [ Hk_eq_1 | Hk_gt_1]] by lia.
-        + (* Case: k = 0 *)
-          subst.
-          simpl in *.
-          eapply fMod.
-        + (* Case: k = 1*)
-          (* This is outlawed! *)
-          lia.
-        + (* Case: k > 1 *)
-          subst.
-          ref (fModDivNext _ (F _ _)).
-          eapply PeanoNat.Nat.div_lt; lia.
-  Qed.
 
   Local Open Scope char_scope.
   Definition nat_lt_10_to_ascii (n : nat) (HN : lt_sprop n 10) : ascii.
@@ -263,9 +208,9 @@ Module Nat_Stringification.
         break_match.
         ** ff.
         ** clear IHs1 H0; clean.
-          assert (x * Nat.pow 10 (length (String a0 s1)) + n = n1) by ff.
+          assert (x * Nat.pow 10 (String.length (String a0 s1)) + n = n1) by ff.
           clear H; erewrite <- H0; clear H0.
-          assert (length (String a1 s) = length (String a0 s1 ++ s2)) by ff.
+          assert (String.length (String a1 s) = String.length (String a0 s1 ++ s2)) by ff.
           erewrite H in *.
           erewrite string_length_app in *.
           simpl.
@@ -290,7 +235,7 @@ Module Nat_Stringification.
       break_match; break_match; simpl; try congruence; ff u;
       try (erewrite nat_lt_10_ascii_invol in *); ff.
       erewrite (string_to_nat_app _ _ IHn0 _ _ IHn).
-      assert (length (nat_to_string (Nat.modulo n 10)) = 1). {
+      assert (String.length (nat_to_string (Nat.modulo n 10)) = 1). {
         set (n' := Nat.modulo n 10).
         assert (n' = 0 \/ n' = 1 \/ n' = 2 \/ n' = 3 \/ n' = 4 \/ n' = 5 \/ n' = 6 \/ n' = 7 \/ n' = 8 \/ n' = 9) by (assert (n' < 10) as Hlt by (eapply n_mod_10_lt_10; ff); lia).
         repeat break_or_hyp; ff; rewrite nat_to_string_eq; ff u.

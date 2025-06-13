@@ -1,7 +1,7 @@
 (* Local copy of structural tactics library from:  https://github.com/uwplse/StructTact 
 
 We have locally modified this a great deal to add tactics that are useful for our proofs. *)
-From Stdlib Require Import Bool String List Ascii Lia.
+From Stdlib Require Export Bool Nat String List Ascii Lia.
 Import ListNotations.
 
 From Ltac2 Require Export Ltac2 Printf Pstring Notations.
