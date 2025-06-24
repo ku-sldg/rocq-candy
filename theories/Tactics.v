@@ -943,7 +943,7 @@ Ltac2 Notation "u" := u.
 Ltac2 autounfold_dbs dbs :=
   List.fold_left
     (fun _acc db => ltac1:(db |- repeat (autounfold with db in *)) (Ltac1.of_ident db)) 
-    ()
+    (ltac1:(repeat autounfold in *))
     dbs.
 Ltac2 ux dbs := 
   (* Always utilize core, but optionally can include extra *)
