@@ -31,8 +31,8 @@ Module Export ResultNotation.
     (at level 61, pat pattern, c1 at next level, right associativity).
   Notation "x '<?>' y" := (unwrap_or x y)
     (at level 98, left associativity).
-  Hint Unfold bind : core.
-  Hint Unfold unwrap_or : core.
+  Global Hint Unfold bind : core.
+  Global Hint Unfold unwrap_or : core.
 End ResultNotation.
 Export ResultNotation.
 
