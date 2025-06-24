@@ -941,10 +941,10 @@ Ltac2 Notation "u" := u.
 (* [ux dbs] is a tactic that unfolds the given databases, and always
    includes the core database. *)
 Ltac2 autounfold_dbs dbs :=
-  List.fold_left
+  (List.fold_left
     (fun _acc db => ltac1:(db |- repeat (autounfold with db in *)) (Ltac1.of_ident db)) 
     (ltac1:(repeat autounfold in *))
-    dbs;
+    dbs);
   ltac1:(repeat autounfold in *).
 Ltac2 ux dbs := 
   (* Always utilize core, but optionally can include extra *)
