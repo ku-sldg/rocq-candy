@@ -942,7 +942,7 @@ Ltac2 Notation "u" := u.
    includes the core database. *)
 Ltac2 autounfold_dbs dbs :=
   List.fold_left
-    (fun _acc db => ltac1:(db |- autounfold with db in *) (Ltac1.of_ident db)) 
+    (fun _acc db => ltac1:(db |- repeat (autounfold with db in *)) (Ltac1.of_ident db)) 
     ()
     dbs.
 Ltac2 ux dbs := 
