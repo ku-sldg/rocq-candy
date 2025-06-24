@@ -937,6 +937,20 @@ Ltac2 l := fun _ => try lia.
 Ltac2 Notation "l" := l.
 Ltac2 u := fun _ => ltac1:(repeat autounfold in *).
 Ltac2 Notation "u" := u.
+
+(* [ux dbs] is a tactic that unfolds the given databases, and always
+   includes the core database. *)
+Ltac2 autounfold_dbs dbs :=
+  List.fold_left
+    (fun _acc db => ltac1:(db |- autounfold with db in *) (Ltac1.of_ident db)) 
+    ()
+    dbs.
+Ltac2 ux dbs := 
+  (* Always utilize core, but optionally can include extra *)
+  fun () =>
+  autounfold_dbs (ident:(core) :: dbs).
+Ltac2 Notation "ux" dbs(list0(ident, ",")) := ux dbs.
+
 Ltac2 a := fun _ => repeat find_apply_hyp_hyp.
 Ltac2 Notation "a" := a.
 Ltac2 r := fun _ => rw_all.
