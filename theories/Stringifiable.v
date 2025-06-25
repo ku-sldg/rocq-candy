@@ -1,7 +1,8 @@
 From Stdlib Require Export String.
 From Stdlib Require Import Ascii.
 Local Open Scope string_scope.
-From RocqCandy Require Import Tactics ResultMonad SPropTools IndSchemes.
+From RocqCandy Require Import Tactics SPropTools IndSchemes.
+From RocqCandy.Monads Require Import ResultMonad.
 Import ResultNotation.
 
 Class Stringifiable (A : Type) := {

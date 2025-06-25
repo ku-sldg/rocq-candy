@@ -1,5 +1,5 @@
 From Stdlib Require Import List.
-From RocqCandy Require Import Tactics ResultMonad.
+From RocqCandy Require Import Tactics.
 
 (* Config Monad definition: Reader/Environment/Configuration Monad *)
 Definition Config (Cfg A : Type) : Type := 

@@ -1,5 +1,5 @@
 From Stdlib Require Import List.
-From RocqCandy Require Import Tactics ResultMonad.
+From RocqCandy Require Import Tactics.
 
 (* State Monad definition *)
 Definition State (St Val : Type) : Type := (St -> (Val * St))%type.

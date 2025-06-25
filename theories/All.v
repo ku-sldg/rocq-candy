@@ -7,7 +7,13 @@ From Stdlib Require Export
   Lia
   ZArith.
 
-From RocqCandy Require Export Stringifiable Tactics DecEq Maps SPropTools IndSchemes.
+From RocqCandy Require Export 
+  Stringifiable 
+  Tactics 
+  DecEq 
+  Maps 
+  SPropTools 
+  IndSchemes.
 From RocqCandy.Monads Require Export 
   ResultMonad 
   StateMonad 
