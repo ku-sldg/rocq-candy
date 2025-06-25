@@ -988,6 +988,9 @@ Ltac2 rec target_break_match
     try (target_break_match h');
     try (target_break_match h)
   end.
+Ltac2 Notation "target_break_match"
+  h(ident) :=
+  target_break_match h.
 
 Ltac2 pose_proof (x : constr) (y : ident option) :=
   match y with
