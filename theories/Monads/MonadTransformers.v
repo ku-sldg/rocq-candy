@@ -35,13 +35,13 @@ Definition lift_config_to_result {Cfg A} (m : Config Cfg A)
 
 Module Export LiftNotations.
   (* Result lifts *)
-  Notation "'↑rs' r" := (lift_result_to_state r) (at level 0).
-  Notation "'↑rc' r" := (lift_result_to_config r) (at level 0).
+  Notation "'↑sr' r" := (lift_result_to_state r) (at level 0).
+  Notation "'↑cr' r" := (lift_result_to_config r) (at level 0).
   (* State lifts *)
-  Notation "'↑sc' m" := (lift_state_to_config m) (at level 0).
-  Notation "'↑sr' m" := (lift_state_to_result m) (at level 0).
+  Notation "'↑cs' m" := (lift_state_to_config m) (at level 0).
+  Notation "'↑rs' m" := (lift_state_to_result m) (at level 0).
   (* Config lifts *)
-  Notation "'↑cs' m" := (lift_config_to_state m) (at level 0).
-  Notation "'↑cr' m" := (lift_config_to_result m) (at level 0).
+  Notation "'↑sc' m" := (lift_config_to_state m) (at level 0).
+  Notation "'↑rc' m" := (lift_config_to_result m) (at level 0).
 End LiftNotations.
 Export LiftNotations.
