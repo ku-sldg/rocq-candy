@@ -751,7 +751,7 @@ Ltac2 Notation "prep_induction"
     simplifies the context. *)
 Ltac2 injc (h : ident) :=
   ltac1:(h |- injection h) (Ltac1.of_ident h);
-  clear h; intros; subst_max.
+  clear $h; intros; subst_max.
 
 (** [find_injection] looks for an [injection] in the context and
     performs [injc]. *)
