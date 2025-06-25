@@ -31,6 +31,10 @@ Definition lift_config_to_result {Cfg A} (m : Config Cfg A)
     : Result (Config Cfg A) unit :=
   res m.
 
+Global Hint Unfold lift_result_to_state lift_result_to_config
+  lift_state_to_config lift_state_to_result
+  lift_config_to_state lift_config_to_result : core.
+
 (* Documentation: To compose monads, use these explicit lift functions to embed computations from an inner monad into an outer monad. *)
 
 Module Export LiftNotations.
