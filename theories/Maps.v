@@ -56,17 +56,11 @@ Section Maps.
     | (k, v) :: rest => insert k v (mapify rest)
     end.
 
-  Definition join (m1 m2 : Map K V) : Map K V :=
+  Definition map_join (m1 m2 : Map K V) : Map K V :=
     mapify (m1 ++ m2).
 
   (* Size of the map (number of key-value pairs) *)
-  Definition size (m : Map K V) : nat := length m.
-
-  (* Get all keys from the map *)
-  Definition keys (m : Map K V) : list K := List.map fst m.
-
-  (* Get all values from the map *)
-  Definition values (m : Map K V) : list V := List.map snd m.
+  Definition map_size (m : Map K V) : nat := length m.
 
   (* Check if map is empty *)
   Definition is_empty (m : Map K V) : bool :=
@@ -189,17 +183,17 @@ Section Maps.
       | Some v => Some v
       end.
   Proof.
-    intros; unfold join; erewrite mapify_eq.
+    intros; unfold map_join; erewrite mapify_eq.
     ar with maps by ff.
   Qed.
   Hint Rewrite -> lookup_eq : maps.
 
-  Theorem NoDup_join : forall (m1 m2 : Map K V),
+  Theorem NoDup_map_join : forall (m1 m2 : Map K V),
     NoDup (List.map fst (mapify (m1 ++ m2))).
   Proof.
-    unfold join; ff; eapply NoDup_mapify.
+    unfold map_join; ff; eapply NoDup_mapify.
   Qed.
-  Hint Resolve NoDup_join : maps.
+  Hint Resolve NoDup_map_join : maps.
 
   Global Instance DecEq_Map `{HV : DecEq V} : DecEq (Map K V).
   typeclasses_eauto.
@@ -214,7 +208,7 @@ Module MapNotations.
   Notation "m '![' k ']'" := (lookup k m) (at level 2) : map_scope.
   Notation "m '![' k ':=' v ']'" := (insert k v m) (at level 2) : map_scope.
   Notation "m -- k" := (remove k m) (at level 50) : map_scope.
-  Notation "m1 '+++' m2" := (join m1 m2) (at level 2) : map_scope.
+  Notation "m1 '+++' m2" := (map_join m1 m2) (at level 2) : map_scope.
 
 End MapNotations.
 Export MapNotations.
