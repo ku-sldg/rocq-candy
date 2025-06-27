@@ -83,13 +83,13 @@ Section Maps.
     end.
 
   (* Filter map by predicate on key-value pairs *)
-  Fixpoint filter (p : K -> V -> bool) (m : Map K V) : Map K V :=
+  Fixpoint map_filter (p : K -> V -> bool) (m : Map K V) : Map K V :=
     match m with
     | [] => []
     | (k, v) :: rest =>
       if p k v
-      then (k, v) :: filter p rest
-      else filter p rest
+      then (k, v) :: map_filter p rest
+      else map_filter p rest
     end.
 
   (* Basic lookup theorems *)
