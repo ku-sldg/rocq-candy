@@ -9,6 +9,7 @@ From Stdlib Require Import List Bool Decidable Streams StrictProp.
 From RocqCandy Require Import DecEq Tactics.
 Import ListNotations.
 
+Global Create HintDb maps.
 Section Maps.
 
   Context {K V : Type} `{DK : DecEq K}.
@@ -93,6 +94,14 @@ Section Maps.
     ff.
   Qed.
   Hint Resolve lookup_empty : maps.
+
+  Lemma insert_not_empty : forall k m v,
+    insert k v m = empty ->
+    False.
+  Proof.
+    induction m; ff; unfold empty in *; ff.
+  Qed.
+  Hint Resolve insert_not_empty : maps.
 
   Theorem lookup_impl_in : forall (k : K) (m : Map K V) (v : V),
     lookup k m = Some v -> 
