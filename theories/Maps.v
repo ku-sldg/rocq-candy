@@ -12,16 +12,16 @@ Import ListNotations.
 Global Create HintDb maps.
 Section Maps.
 
-  Context {K V : Type} `{DK : DecEq K}.
+  Context {K : Type} `{DK : DecEq K}.
 
   (* Map is represented as an association list of key-value pairs *)
   Definition Map K V := list (K * V).
 
   (* Empty map *)
-  Definition empty : Map K V := [].
+  Definition empty {V} : Map K V := [].
 
   (* Lookup operation - returns Some value if key exists, None otherwise *)
-  Fixpoint lookup (k : K) (m : Map K V) : option V :=
+  Fixpoint lookup {V} (k : K) (m : Map K V) : option V :=
     match m with
     | [] => None
     | (k', v) :: rest => 
@@ -31,7 +31,7 @@ Section Maps.
     end.
 
   (* Insert/Update operation - adds or updates a key-value pair *)
-  Fixpoint insert (k : K) (v : V) (m : Map K V) : Map K V :=
+  Fixpoint insert {V} (k : K) (v : V) (m : Map K V) : Map K V :=
     match m with
     | [] => [(k, v)]
     | (k', v') :: rest =>
@@ -41,7 +41,7 @@ Section Maps.
     end.
 
   (* Remove operation - removes a key from the map *)
-  Fixpoint remove (k : K) (m : Map K V) : Map K V :=
+  Fixpoint remove {V} (k : K) (m : Map K V) : Map K V :=
     match m with
     | [] => []
     | (k', v') :: rest =>
@@ -51,34 +51,33 @@ Section Maps.
       else (k', v') :: remove k rest
     end.
 
-  Fixpoint mapify (l : Map K V) : Map K V :=
+  Fixpoint mapify {V} (l : Map K V) : Map K V :=
     match l with
     | [] => empty
     | (k, v) :: rest => insert k v (mapify rest)
     end.
 
-  Definition map_join (m1 m2 : Map K V) : Map K V :=
+  Definition map_join {V} (m1 m2 : Map K V) : Map K V :=
     mapify (m1 ++ m2).
 
   (* Size of the map (number of key-value pairs) *)
-  Definition map_size (m : Map K V) : nat := length m.
-
+  Definition map_size {V} (m : Map K V) : nat := length m.
   (* Check if map is empty *)
-  Definition is_empty (m : Map K V) : bool :=
+  Definition is_empty {V} (m : Map K V) : bool :=
     match m with
     | [] => true
     | _ => false
     end.
 
   (* Map function over values *)
-  Fixpoint map_values {V' : Type} (f : V -> V') (m : Map K V) : Map K V' :=
+  Fixpoint map_values {V V'} (f : V -> V') (m : Map K V) : Map K V' :=
     match m with
     | [] => []
     | (k, v) :: rest => (k, f v) :: map_values f rest
     end.
 
   (* Filter map by predicate on key-value pairs *)
-  Fixpoint map_filter (p : K -> V -> bool) (m : Map K V) : Map K V :=
+  Fixpoint map_filter {V} (p : K -> V -> bool) (m : Map K V) : Map K V :=
     match m with
     | [] => []
     | (k, v) :: rest =>
@@ -87,15 +86,32 @@ Section Maps.
       else map_filter p rest
     end.
 
+  Fixpoint map_Map {V V'} (f : K -> V -> V') (m : Map K V) : Map K V' :=
+    match m with
+    | [] => []
+    | (k, v) :: rest => (k, f k v) :: map_Map f rest
+    end.
+
+  Lemma lookup_map_Map {V V'} (f : K -> V -> V') (m : Map K V) (k : K) :
+    lookup k (map_Map f m) = 
+      match lookup k m with
+      | Some v => Some (f k v)
+      | None => None
+      end.
+  Proof.
+    induction m; ff.
+  Qed.
+
+
   (* Basic lookup theorems *)
-  Theorem lookup_empty : forall (k : K),
-    lookup k empty = None.
+  Theorem lookup_empty : forall {V : Type} (k : K),
+    @lookup V k empty = None.
   Proof.
     ff.
   Qed.
   Hint Resolve lookup_empty : maps.
 
-  Lemma insert_not_empty : forall k m v,
+  Lemma insert_not_empty : forall {V} k m (v : V),
     insert k v m = empty ->
     False.
   Proof.
@@ -103,7 +119,7 @@ Section Maps.
   Qed.
   Hint Resolve insert_not_empty : maps.
 
-  Theorem lookup_impl_in : forall (k : K) (m : Map K V) (v : V),
+  Theorem lookup_impl_in : forall {V} (k : K) (m : Map K V) (v : V),
     lookup k m = Some v -> 
     In (k, v) m.
   Proof.
@@ -111,7 +127,7 @@ Section Maps.
   Qed.
   Hint Resolve lookup_impl_in : maps.
 
-  Theorem lookup_insert_neq : forall (k k' : K) (v : V) (m : Map K V),
+  Theorem lookup_insert_neq : forall V (k k' : K) (v : V) (m : Map K V),
     k <> k' -> 
     lookup k (insert k' v m) = lookup k m.
   Proof.
@@ -119,21 +135,21 @@ Section Maps.
   Qed.
   Hint Rewrite -> lookup_insert_neq : maps.
 
-  Theorem lookup_insert_eq : forall (k : K) (v : V) (m : Map K V),
+  Theorem lookup_insert_eq : forall V (k : K) (v : V) (m : Map K V),
     lookup k (insert k v m) = Some v.
   Proof.
     induction m; ff.
   Qed.
   Hint Rewrite -> lookup_insert_eq : maps.
 
-  Theorem lookup_remove_eq : forall (m : Map K V) k,
+  Theorem lookup_remove_eq : forall V (m : Map K V) k,
     lookup k (remove k m) = None.
   Proof.
     induction m; ff.
   Qed.
   Hint Resolve lookup_remove_eq : maps.
 
-  Theorem lookup_remove_neq : forall (k k' : K) (m : Map K V),
+  Theorem lookup_remove_neq : forall V (k k' : K) (m : Map K V),
     k <> k' -> 
     lookup k (remove k' m) = lookup k m.
   Proof.
@@ -141,7 +157,7 @@ Section Maps.
   Qed.
   Hint Rewrite -> lookup_remove_neq : maps.
 
-  Theorem In_insert : forall (k : K) (v : V) (m : Map K V),
+  Theorem In_insert : forall V (k : K) (v : V) (m : Map K V),
     forall k',
       In k' (List.map fst (insert k v m)) ->
       In k' (List.map fst m) \/ k = k'.
@@ -149,7 +165,7 @@ Section Maps.
     induction m; ff a.
   Qed.
 
-  Theorem NoDup_insert : forall (k : K) (v : V) (m : Map K V),
+  Theorem NoDup_insert : forall V (k : K) (v : V) (m : Map K V),
     NoDup (List.map fst m) ->
     NoDup (List.map fst (insert k v m)).
   Proof.
@@ -158,14 +174,14 @@ Section Maps.
     find_eapply_lem_hyp In_insert; ff r.
   Qed.
 
-  Theorem NoDup_mapify : forall (l : Map K V),
+  Theorem NoDup_mapify : forall V (l : Map K V),
     NoDup (List.map fst (mapify l)).
   Proof.
     induction l; ff r; try econstructor;
     find_eapply_lem_hyp NoDup_insert; ff r.
   Qed.
 
-  Theorem mapify_eq : forall (m : Map K V) (k : K),
+  Theorem mapify_eq : forall V (m : Map K V) (k : K),
     lookup k (mapify m) = lookup k m.
   Proof.
     induction m; ff a, r; 
@@ -174,7 +190,7 @@ Section Maps.
   Qed.
   Hint Rewrite -> mapify_eq : maps.
 
-  Theorem lookup_app : forall (l1 l2 : Map K V) (k : K),
+  Theorem lookup_app : forall V (l1 l2 : Map K V) (k : K),
     lookup k (l1 ++ l2) = 
       match lookup k l1 with
       | None => lookup k l2
@@ -185,7 +201,7 @@ Section Maps.
   Qed.
   Hint Rewrite -> lookup_app : maps.
 
-  Theorem lookup_eq : forall (l1 l2 : Map K V) (k : K),
+  Theorem lookup_eq : forall V (l1 l2 : Map K V) (k : K),
     lookup k (mapify (l1 ++ l2)) = 
       match lookup k l1 with
       | None => lookup k l2
@@ -197,14 +213,14 @@ Section Maps.
   Qed.
   Hint Rewrite -> lookup_eq : maps.
 
-  Theorem NoDup_map_join : forall (m1 m2 : Map K V),
+  Theorem NoDup_map_join : forall V (m1 m2 : Map K V),
     NoDup (List.map fst (mapify (m1 ++ m2))).
   Proof.
     unfold map_join; ff; eapply NoDup_mapify.
   Qed.
   Hint Resolve NoDup_map_join : maps.
 
-  Global Instance DecEq_Map `{HV : DecEq V} : DecEq (Map K V).
+  Global Instance DecEq_Map {V} `{HV : DecEq V} : DecEq (Map K V).
   typeclasses_eauto.
   Defined.
 
