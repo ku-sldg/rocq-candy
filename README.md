@@ -19,7 +19,7 @@ This library contains snippets of nice and useful Rocq code utilized by the KU-S
 - Author(s):
   - Will Thomas
 - License: [Creative Commons Attribution Share Alike 4.0 International](LICENSE)
-- Compatible Coq versions: 8.20 later
+- Compatible Rocq/Coq versions: 8.20 later
 - Compatible OCaml versions: 4.12 or later
 - Additional dependencies:
   - [Dune](https://dune.build) 3.17 or later
