@@ -95,6 +95,50 @@ Proof.
   else fail.
 Qed.
 
+Ltac2 all_of_type (t : constr) :=
+  List.fold_left
+    (fun acc (var, _val, ty) =>
+      if Constr.equal ty t
+      then var :: acc
+      else acc)
+    []
+    (Control.hyps ()).
+
+Ltac2 all_of_type_filter (f : constr -> bool) :=
+  List.fold_left
+    (fun acc (var, _val, ty) =>
+      if f ty
+      then var :: acc
+      else acc)
+    []
+    (Control.hyps ()).
+
+Ltac2 apply_to_all_of_type
+  (t : constr)
+  (tac : ident -> unit) :=
+  let vars := all_of_type t in
+  List.iter (fun i => Control.enter (fun () => tac i)) vars.
+
+Ltac2 apply_to_all_of_type_filter
+  (f : constr -> bool)
+  (tac : ident -> unit) :=
+  let vars := all_of_type_filter f in
+  List.iter (fun i => Control.enter (fun () => tac i)) vars.
+
+Example test_all_of_type : forall A (x y : A) (p q : nat),
+  x = y ->
+  True.
+Proof.
+  intros.
+  let a_s := all_of_type constr:(A) in
+  let a_s_len := List.length a_s in
+  if Int.equal a_s_len 2 then
+    apply I
+  else
+    (printf "Expected 2 A's, found %i" a_s_len;
+    fail).
+Qed.
+
 (** [already_proven_hyp h] returns a boolean value on if the hypothesis "h" is already in the current hypotheses *)
 
 (** [clean] removes any hypothesis of the shape [X = X]. *)
@@ -102,6 +146,9 @@ Ltac2 Notation "clean" :=
   repeat (
     match! goal with
     | [ h : ?_x = ?_x |- _ ] => clear $h
+    | [ h : false = true -> _ |- _ ] => clear $h
+    | [ h : true = false -> _ |- _ ] => clear $h
+    | [ h : False -> _ |- _ ] => clear $h
     end
   ).
 Ltac2 Notation clean := clean.
@@ -993,11 +1040,12 @@ Ltac2 Notation "target_break_match"
   target_break_match h.
 
 Ltac2 pose_proof (x : constr) (y : ident option) :=
+  Control.enter (fun () => 
   match y with
   | None => ltac1:(x |- pose proof x) (Ltac1.of_constr x)
   | Some yval =>
     ltac1:(x y |- pose proof x as y) (Ltac1.of_constr x) (Ltac1.of_ident yval)
-  end.
+  end).
 
 (*  
 ----------------------------------------------
@@ -1031,6 +1079,9 @@ Ltac2 Notation cong := congruence.
 
 Ltac2 Notation "intuition" := ltac1:(intuition).
 Ltac2 Notation intuition := intuition.
+
+Ltac2 Notation "exfalso" := ltac1:(exfalso).
+Ltac2 Notation exfalso := exfalso.
 
 Ltac2 Notation "ar"
   dbs(opt(seq("with", hintdb)))
@@ -1077,3 +1128,36 @@ Ltac2 fresh_hyp (basename : string) : ident :=
     (* Generate a single fresh name, avoiding conflicts with existing names *)
     Fresh.fresh avoid basename_ident
   end.
+
+Ltac2 Notation "rep" 
+  t1(constr)
+  t2(seq("with", constr))
+  tac(opt(seq("by", thunk(tactic)))) 
+  :=
+  match tac with
+  | None => 
+    ltac1:(t1 t2 |- replace t1 with t2)
+      (Ltac1.of_constr t1) 
+      (Ltac1.of_constr t2) 
+  | Some t' => 
+    (ltac1:(t1 t2 |- replace t1 with t2) 
+      (Ltac1.of_constr t1) 
+      (Ltac1.of_constr t2)) > [ | solve [ t' () ] ]
+  end.
+
+Ltac2 guard_goals_le n :=
+  let num := numgoals () in
+  if (Int.le num n) then () else fail.
+
+Ltac2 Notation "setoid_rw_all" h(constr) :=
+  repeat (
+    match! goal with
+    | [ h' : context [ ?_x ] |- _ ] => 
+      setoid_rewrite $h in $h'
+    | [ |- context [ ?_x ] ] => 
+      setoid_rewrite $h
+    end;
+    subst_max;
+    eauto;
+    try (simple congruence 1)
+  ).
