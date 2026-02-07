@@ -51,8 +51,10 @@ Lemma result_map_spec : forall {X Y Z : Type} (l : list X) (f : X -> Result Y Z)
   result_map f l = res resl ->
   (exists fx', (f x) = res fx' /\ In fx' resl).
 Proof.
-  induction l; simpl in *; intuition; eauto; ff u, a.
+  induction l; ff; u (); ff.
   find_eapply_lem_hyp IHl; ff.
+  Unshelve.
+  ff.
 Qed.
 
 Fixpoint result_fold {A B E : Type} (f : A -> B -> Result B E) 

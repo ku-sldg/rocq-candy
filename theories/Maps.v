@@ -102,6 +102,12 @@ Section Maps.
     induction m; ff.
   Qed.
 
+  Inductive valid_map {V} : Map K V -> Prop :=
+  | valid_map_empty : valid_map (@empty V)
+  | valid_map_insert : forall (m : Map K V) (k : K) (v : V),
+      valid_map m ->
+      lookup k m = None ->
+      valid_map (insert k v m).
 
   (* Basic lookup theorems *)
   Theorem lookup_empty : forall {V : Type} (k : K),
@@ -153,7 +159,7 @@ Section Maps.
     k <> k' -> 
     lookup k (remove k' m) = lookup k m.
   Proof.
-    induction m; ff.
+    induction m; ff; fwd; ff.
   Qed.
   Hint Rewrite -> lookup_remove_neq : maps.
 
@@ -162,30 +168,33 @@ Section Maps.
       In k' (List.map fst (insert k v m)) ->
       In k' (List.map fst m) \/ k = k'.
   Proof.
-    induction m; ff a.
+    induction m; ff. 
+    find_eapply_lem_hyp IHm; ff.
   Qed.
 
   Theorem NoDup_insert : forall V (k : K) (v : V) (m : Map K V),
     NoDup (List.map fst m) ->
     NoDup (List.map fst (insert k v m)).
   Proof.
-    induction m; ff r; inv H;
-    econstructor; ff r;
-    find_eapply_lem_hyp In_insert; ff r.
+    induction m; ff; eauto using NoDup.
+    invc H; fwd.
+
+    econstructor; ff.
+    find_eapply_lem_hyp In_insert; ff.
   Qed.
 
   Theorem NoDup_mapify : forall V (l : Map K V),
     NoDup (List.map fst (mapify l)).
   Proof.
-    induction l; ff r; try econstructor;
-    find_eapply_lem_hyp NoDup_insert; ff r.
+    induction l; ff; eauto using NoDup.
+    find_eapply_lem_hyp NoDup_insert; ff.
   Qed.
 
   Theorem mapify_eq : forall V (m : Map K V) (k : K),
     lookup k (mapify m) = lookup k m.
   Proof.
-    induction m; ff a, r; 
-    ar with maps by ff;
+    induction m; ff.
+    ar with maps by ff.
     erewrite lookup_insert_neq; ff.
   Qed.
   Hint Rewrite -> mapify_eq : maps.
@@ -197,7 +206,8 @@ Section Maps.
       | Some v => Some v
       end.
   Proof.
-    induction l1; ff a, r; ar with maps by ff.
+    induction l1; ff;
+    erewrite IHl1; ff.
   Qed.
   Hint Rewrite -> lookup_app : maps.
 
@@ -219,6 +229,60 @@ Section Maps.
     unfold map_join; ff; eapply NoDup_mapify.
   Qed.
   Hint Resolve NoDup_map_join : maps.
+
+  Ltac2 dec_map_lookup () :=
+    ff;
+    repeat (match! goal with
+      | [ h : context [ lookup ?_x (insert ?_x _ _) ] |- _ ] =>
+        erewrite lookup_insert_eq in $h; ff
+      | [ h : context [ lookup ?_x (insert ?_y _ _) ] |- _ ] =>
+        erewrite lookup_insert_neq in $h; ff
+      | [ h : context [lookup _ (map_Map _ _)] |- _ ] =>
+        erewrite lookup_map_Map in $h; ff
+      | [ |- context [ lookup ?_x (insert ?_x _ _) ]] =>
+        erewrite lookup_insert_eq; ff
+      | [ |- context [ lookup ?_x (insert ?_y _ _) ]] =>
+        erewrite lookup_insert_neq; ff
+      | [ |- context [lookup _ (map_Map _ _)] ] =>
+        erewrite lookup_map_Map; ff
+      end).
+
+  Ltac2 Notation "dec_map_lookup" := dec_map_lookup ().
+
+  Fixpoint map_union {V} (picker : V -> V -> V) (m1 m2 : Map K V) : Map K V :=
+    match m1 with
+    | [] => m2
+    | (k, v) :: rest => 
+      match lookup k m2 with
+      | None => (* k ∉ m2, so just insert *)
+        insert k v (map_union picker rest m2)
+      | Some v2 => (* k ∈ m2, need to pick optimal value *)
+        insert k (picker v v2) (map_union picker rest (remove k m2))
+      end
+    end.
+
+  Theorem map_union_lookup {V} (picker : V -> V -> V) (m1 m2 : Map K V) (k : K) :
+    lookup k (map_union picker m1 m2) = 
+      match lookup k m1, lookup k m2 with
+      | Some v1, Some v2 => Some (picker v1 v2)
+      | Some v1, None => Some v1
+      | None, Some v2 => Some v2
+      | None, None => None
+      end.
+  Proof.
+    generalizeEverythingElse m1.
+    induction m1; ff; try (dec_map_lookup);
+    erewrite IHm1; ff; try (dec_map_lookup); ff;
+    erewrite lookup_remove_neq in *; ff.
+  Qed.
+
+  Fixpoint map_fold_left {V Acc} (f : Acc -> K -> V -> Acc) 
+      (acc : Acc) (m : Map K V) : Acc :=
+    match m with
+    | [] => acc
+    | (k, v) :: rest => map_fold_left f (f acc k v) rest
+    end.
+
 
   Global Instance DecEq_Map {V} `{HV : DecEq V} : DecEq (Map K V).
   typeclasses_eauto.

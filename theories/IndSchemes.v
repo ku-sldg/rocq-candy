@@ -23,7 +23,7 @@ Proof.
   assert (n < k \/ n >= k) as [Hlt | Hge] by lia.
   - (* Case: n < k *)
     (* We can just apply a Modulo *)
-    assert (n = Nat.modulo n k) by (pp (PeanoNat.Nat.mod_unique n k 0 n); ff l).
+    assert (n = Nat.modulo n k) by (pp (PeanoNat.Nat.mod_unique n k 0 n); ff; lia).
     rewrite H.
     eapply fMod.
   - (* Case: n >= k *)
@@ -33,7 +33,7 @@ Proof.
     * (* Case: (n // k) < k *)
       (* Just another base case *)
       assert (Nat.div n k = Nat.modulo (Nat.div n k) k) by
-        (pp (PeanoNat.Nat.mod_unique (n / k) k 0 (n / k)); ff l).
+        (pp (PeanoNat.Nat.mod_unique (n / k) k 0 (n / k)); ff; lia).
       eapply (fModDiv _ (fMod _)).
       rewrite H.
       eapply fMod.

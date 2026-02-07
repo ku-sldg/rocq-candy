@@ -52,8 +52,9 @@ Module Nat_Stringification.
   Lemma nat_lts_lt : forall n m,
     Box (nat_lts n m) <-> lt n m.
   Proof.
-    induction n; ff l; box_simpl.
-    - find_eapply_lem_hyp IHn; ff l.
+    induction n; split; ff with l;
+    Control.enter (fun () => box_simpl); ff.
+    - find_eapply_lem_hyp IHn; ff with l.
     - erewrite IHn; lia.
   Qed.
 
@@ -73,13 +74,34 @@ Module Nat_Stringification.
   Lemma nat_lts_dec : forall n m,
     { Box (nat_lts n m) } + { ~ Box (nat_lts n m) }.
   Proof.
-    induction n; ff; try find_contra;
-    right; intro HC; inv HC; inv unbox.
+    induction n; ff; right; ff; invc HC; invc unbox.
   Defined.
 
+  Lemma not_S_10_lt_10 : forall n,
+    lt_sprop (S (S (S (S (S (S (S (S (S (S n)))))))))) 10 -> 
+    Box (nat_lts n 0) ->
+    False.
+  Proof.
+    intros.
+    erewrite nat_lts_lt in *.
+    lia.
+  Qed.
+
+  Lemma nat_lts_10_proof : forall n n',
+    lt_sprop n 10 ->
+    n = S (S (S (S (S (S (S (S (S (S n'))))))))) ->
+    False.
+  Proof.
+    intros n n' HN b.
+    destruct (nat_lts_dec n 10); subst; simpl in *.
+    - eapply (not_S_10_lt_10 _ HN b0).
+    - eapply lt_sprop_impl_nat_lts in HN; simpl in *; eauto.
+  Qed.
+
+
   Local Open Scope char_scope.
-  Definition nat_lt_10_to_ascii (n : nat) (HN : lt_sprop n 10) : ascii.
-  ref (
+  Definition nat_lt_10_to_ascii (n : nat) (HN : lt_sprop n 10) 
+      : ascii :=
     match n as n' return n = n' -> ascii with
     | O => fun _ => "0"
     | S O => fun _ => "1"
@@ -91,12 +113,8 @@ Module Nat_Stringification.
     | S (S (S (S (S (S (S O)))))) => fun _ => "7"
     | S (S (S (S (S (S (S (S O))))))) => fun _ => "8"
     | S (S (S (S (S (S (S (S (S O)))))))) => fun _ => "9"
-    | _ => fun HNN => False_rect _ _
-    end eq_refl).
-    destruct (nat_lts_dec n 10); subst; simpl in *.
-    - erewrite nat_lts_lt in *; try lia.
-    - eapply lt_sprop_impl_nat_lts in HN; simpl in *; eauto.
-  Defined.
+    | _ => fun HNN => False_rect _ (nat_lts_10_proof _ _ HN HNN)
+    end eq_refl.
 
   Definition nat_lt_10_from_ascii (c : ascii) : Result { n | Box (lt_sprop n 10) } string :=
     let n_val := Ascii.nat_of_ascii c in
@@ -110,10 +128,10 @@ Module Nat_Stringification.
   Lemma nat_lt_10_ascii_invol : forall n (HN : lt_sprop n 10),
     nat_lt_10_from_ascii (nat_lt_10_to_ascii n HN) = res (exist _ n (box HN)).
   Proof.
-    induction n; ff l; try (ltac1:(exfalso; eauto; fail)); box_simpl.
+    induction n; intros; ff with l;
+    try (ltac1:(exfalso; eauto; fail)); box_simpl.
     - eapply lt_sprop_impl_nat_lts in HN as HN'; simpl in *; box_simpl.
-    - eapply lt_sprop_impl_nat_lts in HN as HN'; simpl in *; box_simpl.
-    - eapply lt_sprop_impl_nat_lts in HN as HN'; simpl in *; box_simpl.
+      destruct n0; ff; box_simpl.
   Qed.
   Opaque nat_lt_10_to_ascii nat_lt_10_from_ascii.
 
@@ -123,13 +141,13 @@ Module Nat_Stringification.
   Proof.
     intros.
     erewrite nat_lts_lt in *.
-    ff l.
+    ff with l.
   Qed.
 
   Lemma n_mod_10_lt_10 : forall n,
     Nat.modulo n 10 < 10.
   Proof.
-    ff l.
+    ff with l.
   Qed.
 
   Lemma n_mod_sprop : forall n,
@@ -146,7 +164,7 @@ Module Nat_Stringification.
     ~ (Box (nat_lts n 10)) ->
     Nat.div n 10 < n.
   Proof.
-    intros; eapply PeanoNat.Nat.div_lt; ff l.
+    intros; eapply PeanoNat.Nat.div_lt; ff with l.
     erewrite nat_lts_lt in *.
     lia.
   Qed.
@@ -168,6 +186,7 @@ Module Nat_Stringification.
     intros.
     unfold nat_to_string at 1.
     erewrite Fix_eq; ff.
+    erewrite H; ff.
   Qed.
 
   (* TODO: Make this tail recursive! *)
@@ -231,15 +250,15 @@ Module Nat_Stringification.
         lia.
       }
       clearbody n'.
-      repeat break_or_hyp; rewrite nat_to_string_eq; ff u.
+      repeat break_or_hyp; rewrite nat_to_string_eq; ff with u.
     - rewrite nat_to_string_eq.
-      break_match; break_match; simpl; try congruence; ff u;
+      break_match; break_match; simpl; try congruence; ff with u;
       try (erewrite nat_lt_10_ascii_invol in *); ff.
       erewrite (string_to_nat_app _ _ IHn0 _ _ IHn).
       assert (String.length (nat_to_string (Nat.modulo n 10)) = 1). {
         set (n' := Nat.modulo n 10).
         assert (n' = 0 \/ n' = 1 \/ n' = 2 \/ n' = 3 \/ n' = 4 \/ n' = 5 \/ n' = 6 \/ n' = 7 \/ n' = 8 \/ n' = 9) by (assert (n' < 10) as Hlt by (eapply n_mod_10_lt_10; ff); lia).
-        repeat break_or_hyp; ff; rewrite nat_to_string_eq; ff u.
+        repeat break_or_hyp; ff; rewrite nat_to_string_eq; ff with u.
       }
       rewrite H.
       simpl.

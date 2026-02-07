@@ -7,6 +7,148 @@ Import ListNotations.
 From Ltac2 Require Export Ltac2 Printf Pstring Notations.
 From Ltac2 Require Export Bool Lazy Array Lazy FMap Fresh Control Ltac1 Constr.
 
+(* Compatability/Notational Layer *)
+Ltac2 Notation "ref" x(preterm) :=
+  ltac1:(x |- refine x) (Ltac1.of_preterm x).
+
+Ltac2 Notation congruence := congruence.
+Ltac2 Notation cong := congruence.
+
+Ltac2 Notation "intuition" := ltac1:(intuition).
+Ltac2 Notation intuition := intuition.
+
+Ltac2 Notation "eassumption" := ltac1:(eassumption).
+Ltac2 Notation eassumption := eassumption.
+
+Ltac2 Notation "exfalso" := ltac1:(exfalso).
+Ltac2 Notation exfalso := exfalso.
+
+(*  
+----------------------------------------------
+My semi-compatability layer for Ltac1 -> Ltac2
+----------------------------------------------
+*)
+
+Ltac2 pose_proof (x : constr) (y : ident option) :=
+  Control.enter (fun () => 
+  match y with
+  | None => ltac1:(x |- pose proof x) (Ltac1.of_constr x)
+  | Some yval =>
+    ltac1:(x y |- pose proof x as y) (Ltac1.of_constr x) (Ltac1.of_ident yval)
+  end).
+
+Ltac2 Notation "pose" "proof" 
+  x(constr)
+  y(opt(seq("as", ident))) :=
+  pose_proof x y.
+
+Ltac2 Notation "pp"
+  x(constr)
+  y(opt(seq("as", ident))) :=
+  pose_proof x y.
+
+Ltac2 Notation "pps" 
+  xs(list0(constr, ",")) :=
+  List.fold_left (fun _ x => pose_proof x None) () xs.
+
+Ltac2 Notation "clearbody" 
+  ids(list1(ident)) :=
+  Std.clearbody ids.
+
+Ltac2 Notation "ar"
+  dbs(opt(seq("with", hintdb)))
+  cl(opt(clause))
+  tac(opt(seq("by", thunk(tactic))))
+  :=
+  let db := default_list (default_db dbs) in
+  let cl := default_on_concl cl in
+  try (Std.autorewrite true tac db cl).
+
+
+(**
+ * [fresh_names_in_goal n basename] generates a list of [n] fresh identifiers
+ * that do not conflict with names currently in the goal or with each other.
+ * All generated names will have [basename] as their prefix.
+ *)
+Ltac2 rec fresh_names_in_goal (n : int) (basename : ident) (avoid : Fresh.Free.t) (acc : ident list) : ident list :=
+  if Int.le n 0 then
+    List.rev acc
+  else
+    let h := Fresh.fresh avoid basename in
+    fresh_names_in_goal (Int.sub n 1) basename 
+      (Free.union (Free.of_ids [h]) avoid) (h :: acc).
+
+(**
+ * A convenient wrapper to generate a list of [n] fresh hypothesis names.
+ *)
+Ltac2 fresh_hyps (n : int) (basename : string) : ident list :=
+  match Ident.of_string basename with
+  | None => throw_invalid_argument "fresh_hyps" "basename must be a valid identifier"
+  | Some name =>
+    (* Generate fresh names in the goal, avoiding conflicts with existing names *)
+    fresh_names_in_goal n name (Fresh.Free.of_goal ()) []
+  end.
+
+(**
+ * A variant of [fresh_hyp] that always generates a single fresh name.
+ *)
+Ltac2 fresh_hyp (basename : string) : ident :=
+  let avoid := Fresh.Free.of_goal () in
+  match Ident.of_string basename with
+  | None => throw_invalid_argument "fresh_hyp" "basename must be a valid identifier"
+  | Some basename_ident =>
+    (* Generate a single fresh name, avoiding conflicts with existing names *)
+    Fresh.fresh avoid basename_ident
+  end.
+
+Ltac2 rec get_forall_var_names (h : constr) : ident list :=
+  match! h with
+  | forall _ : _, _ =>
+    match Constr.Unsafe.kind h with
+    | Unsafe.Prod bnd rst => 
+      let rest : ident list := get_forall_var_names rst in
+      match Binder.name bnd with
+      | Some i => i :: rest
+      | None => 
+        match Ident.of_string "H" with
+        | Some id => id :: rest
+        | None => Control.zero (Tactic_failure None)
+        end
+      end
+    | _ => Control.zero (Tactic_failure None)
+    end
+  | _ => []
+  end.
+
+Ltac2 get_forall_var_name (h : constr) : ident :=
+  match get_forall_var_names h with
+  | [] => Control.zero (Tactic_failure None)
+  | x :: _ => x
+  end.
+
+
+Ltac2 Notation "rep" 
+  t1(constr)
+  t2(seq("with", constr))
+  tac(opt(seq("by", thunk(tactic)))) 
+  :=
+  match tac with
+  | None => 
+    ltac1:(t1 t2 |- replace t1 with t2)
+      (Ltac1.of_constr t1) 
+      (Ltac1.of_constr t2) 
+  | Some t' => 
+    (ltac1:(t1 t2 |- replace t1 with t2) 
+      (Ltac1.of_constr t1) 
+      (Ltac1.of_constr t2)) > [ | solve [ t' () ] ]
+  end.
+
+
+(* Debugging Tools *)
+Ltac2 guard_goals_le n :=
+  let num := numgoals () in
+  if (Int.le num n) then () else fail.
+
 Ltac2 dump_hyps () :=
   let hyps := Control.hyps () in
   List.iter 
@@ -139,25 +281,181 @@ Proof.
     fail).
 Qed.
 
-(** [already_proven_hyp h] returns a boolean value on if the hypothesis "h" is already in the current hypotheses *)
+(* Helper: recursively dig into an application to find the head constructor. 
+   Returns Some(term) if the head is a Constructor, otherwise None. *)
+Ltac2 rec get_constructor_head (c : constr) : constr option :=
+  match Constr.Unsafe.kind c with
+  | Constr.Unsafe.Constructor _ _ => Some c
+  | Constr.Unsafe.App f _ => get_constructor_head f
+  | _ => None
+  end.
 
-(** [clean] removes any hypothesis of the shape [X = X]. *)
-Ltac2 Notation "clean" :=
-  repeat (
-    match! goal with
-    | [ h : ?_x = ?_x |- _ ] => clear $h
-    | [ h : false = true -> _ |- _ ] => clear $h
-    | [ h : true = false -> _ |- _ ] => clear $h
-    | [ h : False -> _ |- _ ] => clear $h
-    end
-  ).
-Ltac2 Notation clean := clean.
+(* Check if a term is an equality between distinct constructors. 
+   e.g. "true = false", "S n = 0", "cons x xs = nil" *)
+Ltac2 is_discr_equality (c : constr) : bool :=
+  match Constr.Unsafe.kind c with
+  | Constr.Unsafe.App head args =>
+    (* Check if it is the '@eq' constant *)
+    if Constr.equal head '(@eq) then
+      (* args is [Type; lhs; rhs] *)
+      if Int.equal (Array.length args) 3 
+      then (
+        let lhs := Array.get args 1 in
+        let rhs := Array.get args 2 in
+        match get_constructor_head lhs with
+        | Some h1 =>
+          match get_constructor_head rhs with
+          | Some h2 => 
+            (* If both are constructors, but NOT the same one, 
+                then the equality is impossible. *)
+            Bool.neg (Constr.equal h1 h2)
+          | None => false
+          end
+        | None => false
+        end
+      )
+      else false
+    else false
+  | _ => false
+  end.
 
-Example test_clean : forall A (x : A), x = x -> True.
+Example test_is_discr_equality_1 : forall n ns,
+  true = false ->
+  false = true ->
+  true = true ->
+  S n = 0 ->
+  0 = S n ->
+  0 = 0 ->
+  cons n ns = nil ->
+  nil = cons n ns ->
+  @nil nat = nil ->
+  ("x" = "")%string ->
+  ("" = "x")%string ->
+  ("" = "")%string ->
+  True.
 Proof.
-  intros.
+  intros n ns Hb1 Hb2 HbG Hn1 Hn2 HnG Hl1 Hl2 HlG Hs1 Hs2 HsG.
+  let gather h := Constr.type (Control.hyp h) in
+  let tests := [
+    is_discr_equality (gather ident:(Hb1));
+    is_discr_equality (gather ident:(Hb2));
+    neg (is_discr_equality (gather ident:(HbG)));
+    is_discr_equality (gather ident:(Hn1));
+    is_discr_equality (gather ident:(Hn2));
+    neg (is_discr_equality (gather ident:(HnG)));
+    is_discr_equality (gather ident:(Hl1));
+    is_discr_equality (gather ident:(Hl2));
+    neg (is_discr_equality (gather ident:(HlG)));
+    is_discr_equality (gather ident:(Hs1));
+    is_discr_equality (gather ident:(Hs2));
+    neg (is_discr_equality (gather ident:(HsG)))
+  ] in
+  if (List.for_all (fun b => b) tests) 
+  then apply I
+  else fail.
+Qed.
+
+(* Check if 'c' is visibly False or 'Absurd = Absurd' *)
+Ltac2 is_refutable (c : constr) : bool :=
+  (* 1. Is it literally False? *)
+  if Constr.equal c '(False) then true 
+  else 
+    (* 2. Is it a discriminable equality? *)
+    if is_discr_equality c then true
+    else 
+      (* 3. Optional: Try shallow reduction to expose False *)
+      match Constr.Unsafe.kind c with
+      | Constr.Unsafe.Ind _ _ => Constr.equal c '(False)
+      | _ => false
+      end.
+
+Example test_is_refuable :
+  False ->
+  (0 = 1) ->
+  True.
+Proof.
+  intros Hf Heq.
+  let gather h := Constr.type (Control.hyp h) in
+  let tests := [
+    is_refutable (gather ident:(Hf));
+    is_refutable (gather ident:(Heq))
+  ] in
+  if (List.for_all (fun b => b) tests) 
+  then apply I
+  else fail.
+Qed.
+
+(** [clean] removes any hypothesis of the shape [X = X]
+    or [False -> _]
+
+    It returns a list of the removed hypotheses.
+*)
+  (* Logic to identify reflexivity: x = x *)
+Ltac2 is_reflexive (c : constr) : bool :=
+  match Constr.Unsafe.kind c with
+  | Constr.Unsafe.App head args =>
+      if Constr.equal head '(@eq) then
+        match Array.length args with
+        | 3 => Constr.equal (Array.get args 1) (Array.get args 2)
+        | _ => false
+        end
+      else false
+  | _ => false
+  end.
+
+Ltac2 clean_list (hs : (ident * constr option * constr) list) : ident list :=
+  (* Logic to identify implications with a refutable domain *)
+  let is_useless_implication (c : constr) : bool :=
+    match Constr.Unsafe.kind c with
+    | Constr.Unsafe.Prod binder _body =>
+        let domain := Constr.Binder.type binder in
+        (* Avoiding any eval for now!
+        (* Evaluate HNF to handle 'not True' -> 'True -> False' *)
+        let domain := Std.eval_hnf domain in 
+        *)
+        is_refutable domain
+    | _ => false
+    end
+  in
+  let cleaners := 
+    List.fold_left
+      (fun acc (var, _val, ty) =>
+        if (is_reflexive ty) || (is_useless_implication ty) 
+        then var :: acc
+        else acc)
+      []
+      hs
+  in
+  Std.clear cleaners;
+  cleaners.
+
+Ltac2 Notation "clean" := 
+  Control.enter (fun () => 
+    let _ := clean_list (Control.hyps ()) in
+    ()
+  ).
+
+Example test_clean : forall A (x : A) P, 
+  x = x -> 
+  (False -> P) ->
+  (0 = 1 -> P) ->
+  True.
+Proof.
+  intros A x P Hx HfP HnP.
   clean.
-  apply I.
+  (* After cleaning, Hx, HfP and HnP should be removed *)
+  let remaining_hyps := Control.hyps () in
+  let remaining_names := List.map (fun (var, _, _) => var) remaining_hyps in
+  if (
+    List.exist (fun v => 
+      (Ident.equal v ident:(Hx)) 
+      || (Ident.equal v ident:(HfP)) 
+      || (Ident.equal v ident:(HnP))
+    ) 
+    remaining_names
+  )
+  then fail
+  else (apply I).
 Qed.
 
 (** [subst_max] performs as many [subst] as possible, clearing all
@@ -937,10 +1235,443 @@ Ltac2 Notation "find_contra" :=
   end).
 Ltac2 Notation find_contra := find_contra.
 
+
+Require Import Ltac2.Ltac2.
+Require Import Ltac2.Control.
+Require Import Ltac2.Printf.
+
+(* --- UTILITIES --- *)
+
+(* Safely get a hypothesis, returning None if it was cleared/substed *)
+Ltac2 safe_hyp (id : ident) 
+    : (ident * constr option * constr) option :=
+  match List.find_opt (fun (i, _, _) => Ident.equal i id) (Control.hyps ()) with
+  | Some h => Some h
+  | None => None
+  end.
+
+(* --- CORE AUTOMATION --- *)
+
+Ltac2 is_constructor_app (c : constr) : constr option :=
+  (* Returns the Head Constructor if the term is (C ...) *)
+  match Constr.Unsafe.kind c with
+  | Constr.Unsafe.Constructor _ _ => Some c
+  | Constr.Unsafe.App head _ => 
+      match Constr.Unsafe.kind head with
+      | Constr.Unsafe.Constructor _ _ => Some head
+      | _ => None
+      end
+  | _ => None
+  end.
+
+Ltac2 is_injectable_equality (t : constr) : bool :=
+  match Constr.Unsafe.kind t with
+  | Constr.Unsafe.App head args =>
+      if Constr.equal head '(@eq) then 
+         (* eq A x y *)
+         if Int.equal (Array.length args) 3 then
+           let lhs := Array.get args 1 in
+           let rhs := Array.get args 2 in
+           match is_constructor_app lhs, is_constructor_app rhs with
+           | Some c1, Some c2 => Constr.equal c1 c2 (* Same constructor? Injectable! *)
+           | _, _ => false
+           end
+         else false
+      else false
+  | _ => false
+  end.
+
+(* Returns the list of NEW hypotheses created by injection *)
+Ltac2 inject_and_subst (h : ident) : unit :=
+  (* Perform injection and clear the original *)
+  Std.injection 
+    true 
+    (Some [Std.IntroNaming Std.IntroAnonymous]) 
+    (Some (Std.ElimOnIdent h));
+  subst.
+
+(* The destruct_match tactic. 
+   Optimized to avoid blind rewriting.
+*)
+Ltac2 dest_match (t : constr) : unit :=
+  let h_eq := fresh_hyp "Heq" in
+  (* dest_match logic: destruct and handle the equality *)
+  destruct $t eqn:$h_eq;
+  Control.enter (fun () =>
+    (* In each branch, try to subst if it's a var, or rewrite if it's a term *)
+    try (
+        let heq_hyp := Control.hyp h_eq in
+        match Constr.Unsafe.kind t with
+        | Constr.Unsafe.Var _ => Std.subst [h_eq]
+        | _ => 
+          (* It is a term equality, e.g., (f x) = true. 
+              Rewrite it in the goal and hyps to simplify context. *)
+          rewrite $heq_hyp in *
+        end
+    )
+  ).
+
+(* OPTIMIZATION: Filter out "Boring" hypotheses. 
+   We don't want to grind 'n : nat', 'A : Type', or 'H : A -> B'.
+   We only want to grind "Data" (And, Or, Exists, Eq) or "Contradictions" (False). *)
+Ltac2 is_inert (c : constr) : bool :=
+  match Constr.Unsafe.kind c with
+  | Constr.Unsafe.Var _ => true  (* n : nat *)
+  | Constr.Unsafe.Sort _ => true (* A : Type *)
+  | Constr.Unsafe.Prod _ _ => true (* H : A -> B (Keep these for the solver, don't grind) *)
+  | Constr.Unsafe.Ind _ _ => 
+       (* Check for False! False is an Inductive, but it is NOT inert. *)
+       if Constr.equal c '(False) then false else true 
+  | _ => false
+  end.
+
+(* Collect only "Interesting" hypotheses to seed the queue *)
+Ltac2 active_hyps () : ident list :=
+  List.fold_left 
+    (fun acc (i, _, ty) => 
+      if Bool.neg (is_inert ty) then i :: acc else acc) 
+    [] 
+    (Control.hyps ()).
+
+(* The Worklist Grinder. 
+   It takes a list of hypothesis IDs. It pops one, processes it, 
+   and pushes NEW hypotheses onto the stack.
+   It runs until the stack is empty (Fixed Point).
+*)
+Ltac2 grinder (queue : ident list) :=
+  let restart g  := 
+    (* SUBST RUINS THE QUEUE. 
+      Refill with ALL current hyps to be safe. *)
+    g (active_hyps ())
+  in
+  let rec aux q := 
+    try (simple congruence 1);
+    match q with
+    | [] => () (* Done *)
+    | hid :: rest =>
+      match safe_hyp hid with
+      | None => aux rest (* It's gone, skip *)
+      | Some (name, _val, type) =>
+        let hv := Control.hyp name in
+        (* Check for trivial contradictions first *)
+        if is_reflexive type then (
+          (* we have to do "try" here because it may be
+          used in other hypotheses *)
+          try (clear $name); 
+          aux rest
+        ) 
+        else if is_discr_equality type then (exfalso; congruence) 
+        (* 3. Injectable Equality: S n = S m *)
+        else if is_injectable_equality type then (
+          (* Inject, get new IDs (n=m), and ADD them to the queue *)
+          try (
+            inject_and_subst name;
+            restart aux
+          )
+        )
+        else
+          (* Inspect type structure *)
+          lazy_match! type with
+          | False => exfalso; assumption
+          | _ /\ _ =>
+              (* Split and add children to queue *)
+              let h1 := fresh_hyp "Hand_l" in
+              let h2 := fresh_hyp "Hand_r" in
+              destruct $hv as [$h1 $h2];
+              aux (h1 :: h2 :: rest)
+          
+          | _ \/ _ =>
+              (* Branching! We must recurse in BOTH branches. *)
+              let h1 := fresh_hyp "Hor_l" in
+              let h2 := fresh_hyp "Hor_r" in
+              (* logic: destruct, then in each branch, continue grinding with the specific new hyp *)
+              destruct $hv as [$h1 | $h2] > 
+              [ aux (h1 :: rest) | aux (h2 :: rest) ]
+          
+          | exists _, _ =>
+              let h_body := fresh_hyp "Hex" in
+              destruct $hv as [? $h_body];
+              aux (h_body :: rest)
+
+          (* Optional: Match Context Scanning 
+              Only doing this on hypotheses can be aggressive. 
+              Enable if you really need it. *)
+          | context [ match ?v with _ => _ end ] =>
+                (* Warning: This can loop if dest_match doesn't eliminate the match. *)
+              dest_match v; Control.enter (fun () => restart aux)
+              
+          | ?x = ?y =>
+              (* Subst logic *)
+              match Constr.Unsafe.kind x with
+              | Constr.Unsafe.Var xid => 
+                Std.subst [xid]; restart aux
+              | _ => 
+                match Constr.Unsafe.kind y with
+                | Constr.Unsafe.Var yid => 
+                  Std.subst [yid]; restart aux
+                | _ => 
+                  (* neither remain, try rewrite *)
+                  try (erewrite $hv in *); 
+                  aux rest
+                end
+              end
+                
+          | _ => aux rest
+          end
+      end
+    end
+  in
+  aux queue.
+
+(* Entry point for cleaning context *)
+Ltac2 saturate_context () :=
+  grinder (active_hyps ()).
+
+(* --- THE UNIFIED LOOP --- *)
+Ltac2 crush_loop 
+    (inter_solver : unit -> unit) 
+    (leaf_solver : unit -> unit) :=
+  (* TODO: Rescue should not backtrack nearly as much!!! *)
+  let rescue f :=
+    try (leaf_solver ());
+
+    (* A. Try reducing the goal specifically *)
+    Control.plus 
+      (fun () => 
+        progress (fun () => cbn);
+        (* If cbn changed something, loop again to see if new matches appeared *)
+        f ())
+      (fun _ => 
+        (* B. If goal didn't change, try reducing ALL hyps. 
+            This is aggressive but necessary for hidden matches in hyps. *)
+        Control.plus 
+          (fun () =>
+              progress (fun () => cbn in * ); f ())
+          
+          (fun _ => ())
+      )
+  in
+  let rec aux () :=
+    saturate_context ();
+    try (inter_solver ());
+    Control.enter (fun () => 
+      
+      lazy_match! goal with
+      (* --------------------------------------------------------- *)
+      (* 3. GOAL STRUCTURE                                         *)
+      (* --------------------------------------------------------- *)
+      | [ |- ~ _ ] =>
+          let hc := fresh_hyp "HC" in
+          intro $hc; aux ()
+      | [ |- True ] => trivial
+      | [ |- _ /\ _ ] => 
+          split > [ aux () | aux () ]
+      
+      | [ |- _ \/ _ ] => 
+          try (
+            solve [ left; aux () ];
+            solve [ right; aux () ]
+          );
+          rescue aux
+          
+      | [ |- exists _, _ ] => 
+        (* only lock in existentials if solving *)
+        try (eexists; solve [ aux () ]);
+        rescue aux
+          
+      | [ |- forall _, _ ] => 
+        let v := get_forall_var_name (Control.goal ()) in
+        let x := fresh_hyp (Ident.to_string v) in
+        intros $x; aux ()
+
+      (* --------------------------------------------------------- *)
+      (* 4. MATCH DESTRUCTION (The "Smart" Step)                   *)
+      (* --------------------------------------------------------- *)
+      (* We look for match in Goal OR Hyps. 
+        Note: This can be expensive, so it's lower priority than basic cleanup. *)
+
+      | [ |- context [ match ?t with _ => _ end ] ] =>
+          dest_match t; Control.enter aux
+
+      (* --------------------------------------------------------- *)
+      (* TRY REDUCTION *)
+      (* --------------------------------------------------------- *)
+      | [ |- _ ] => 
+        (* only option: hope for rescue!!! *)
+        rescue aux
+      end
+    )
+  in
+  aux ().
+
+(*
+Ltac2 dest_match (t : constr) solver resume :=
+  let h := fresh_hyp "Heq" in
+  destruct $t eqn:$h; 
+  (* Try to rewrite it everywhere *)
+  Control.enter (fun () => 
+    let hv := Control.hyp h in
+    try (erewrite $hv in * )
+  ); 
+  (* Do all injections *)
+  Control.enter (fun () => 
+    try find_injection
+  );
+  (* Since we created goals, do contra elimination *)
+  Control.enter solver;
+  (* Continue *)
+  Control.enter resume.
+
+
+Ltac2 rec elim_contras (h : ident) :=
+  (* NOTE: This may get rid of "h", so need to check after *)
+  subst_max;
+  try (
+    cbn in $h;
+    let hv := Control.hyp h in
+    lazy_match! Constr.type hv with
+    | False => exfalso; exact $hv
+    | exists _, _ => 
+      let v := fresh_hyp "v" in
+      let hc := fresh_hyp "hc" in
+      destruct $hv as [$v $hc] > [ elim_contras hc ]
+    (* | forall _, _ =>
+      printf "not handling foralls yet: %I: %t" h hv *)
+    | context [ match ?v with _ => _ end ] =>
+      dest_match v 
+        (fun () => try (elim_contras h))
+        (fun () => try (elim_contras h))
+    | _ \/ _ =>
+      let hc1 := fresh_hyp "hc1" in
+      let hc2 := fresh_hyp "hc2" in
+      destruct $hv as [$hc1 | $hc2] 
+      > [ elim_contras hc1 | elim_contras hc2 ]
+    | _ /\ _ =>
+      let hc1 := fresh_hyp "hc1" in
+      let hc2 := fresh_hyp "hc2" in
+      destruct $hv as [$hc1 $hc2]; 
+      Control.enter (fun () => 
+        try (elim_contras hc1); 
+        try (elim_contras hc2)
+      )
+    | _ => 
+      (* default case, needs to be solvable *)
+      try (simple congruence 1); 
+      (* if not solved, go to the bigger guns *)
+      try (congruence)
+    end
+  ).
+
+Ltac2 Notation "elim_contras" h(ident) := elim_contras h.
+
+Ltac2 Notation "elim_all_contras" :=
+  Control.enter (fun () =>
+    List.iter 
+      (fun (h, _, _) => Control.enter (fun () => elim_contras $h)) 
+      (Control.hyps ())
+  ).
+
+Ltac2 rec ff tac :=
+  subst_max;
+  lazy_match! goal with
+  | [ h : _ /\ _ |- _ ] => 
+    let h1 := fresh_hyp "Hand_l" in
+    let h2 := fresh_hyp "Hand_r" in
+    let hv := Control.hyp h in
+    destruct $hv as [$h1 $h2]; 
+    Control.enter (fun () => 
+      try (elim_contras h1); 
+      try (elim_contras h2)
+    );
+    Control.enter (fun () => ff tac)
+  | [ h : _ \/ _ |- _ ] => 
+    let hor := fresh_hyp "Hor" in
+    let hv := Control.hyp h in
+    (* 
+    we ensure that at least one of the goals is solved 
+    *)
+    try (
+      let ng := numgoals () in
+      destruct $hv as [$hor | $hor];
+      Control.enter (fun () =>
+        try (elim_contras $hor); 
+        Control.enter (fun () => ff tac)
+      );
+      guard_goals_le ng
+    )
+  | [ |- ~ _ ] => 
+    let hc := fresh_hyp "HC" in
+    intro $hc; Control.enter 
+      (fun () => elim_contras $hc; repeat find_injection)
+  | [ |- forall _, _ ] => 
+    let v := get_forall_var_name (Control.goal ()) in
+    let x := fresh_hyp (Ident.to_string v) in
+    intros $x; 
+    (* try to contradict the hypothesis *)
+    Control.enter (fun () => elim_contras $x; repeat find_injection);
+    Control.enter (fun () => ff tac)
+  | [ |- exists _, _ ] => 
+    (* only lock in existentials if solving *)
+    try (eexists; solve [ ff tac ])
+  | [ |- _ /\ _ ] => 
+    (* we really only want to split if both sides get solved *)
+    try (split; solve [ Control.enter (fun () => ff tac) ])
+  | [ |- _ \/ _ ] => 
+    try (left; ff tac; fail);
+    try (right; ff tac; fail)
+  | [ |- context [ match ?v with _ => _ end ] ] =>
+    dest_match v (fun () => elim_all_contras) (fun () => ff tac)
+  | [ |- _ ] => (* default case, use tac *) 
+    try (tac ());
+    (* if not done, do a cbn and continue *)
+    try (
+      progress (fun () => cbn);
+      (* only continue if cbn simplified *)
+      ff tac
+    )
+  end.
+*)
+
+Ltac2 rec find_relevant_entry (comp : constr) (vl : constr) :=
+  match! vl with
+  | nil => Control.zero (Tactic_failure None)
+  | ((?c, (?c_stat, ?c_typ, ?c_next_cor)) :: ?rest) =>
+    (* check if the head matches *)
+    if Constr.equal comp c
+    then (c_stat, c_typ, c_next_cor)
+    else find_relevant_entry comp rest
+  end.
+
+Ltac2 Notation "find_relevant_entry" comp(constr) map(constr) := 
+  find_relevant_entry comp map.
+
+Ltac2 Notation "ff" 
+  tacs(opt(seq("with", list0(tactic(0), ",")))) :=
+  let inter_tac := tac_list_thunk tacs in
+  let res_tac () := eauto; reflexivity in
+  Control.enter (
+    fun () =>
+    try (res_tac ());
+    try (inter_tac ());
+    Control.enter (fun () => crush_loop inter_tac res_tac)
+  ).
+
+Ltac2 Notation "fwd" :=
+  Control.enter (fun () =>
+    match! goal with
+    | [ h : ?h1 -> ?_h2 |- _ ] =>
+      let ha := fresh_hyp "Ha" in
+      assert ($h1) as $ha by ff; 
+      let hv := Control.hyp h in
+      let hav := Control.hyp ha in
+      pp ($hv $hav); clear $h $ha
+    end
+  ).
+
 (* Simplification hammer.  Used at beginning of many proofs in this 
    development.  Conservative simplification, break matches, 
    invert on resulting goals *)
-Ltac2 rec ff tac :=
+Ltac2 rec ff_old tac :=
   repeat (
     try (unfold not in *);
     intros;
@@ -971,7 +1702,7 @@ Ltac2 rec ff tac :=
     (* We only break up hyp ORs if we <= the total number of goals *)
     try (
       let num := numgoals () in
-      break_or_hyp; ff tac; 
+      break_or_hyp; ff_old tac; 
       ltac1:(num |- let num2 := numgoals in
       guard num2 <= num) (Ltac1.of_int num))
   ).
@@ -1010,19 +1741,19 @@ Ltac2 Notation "d" := d.
 
 (* [interp_tac_str] interprets a string as a sequence of tactics. *)
 
-Ltac2 ff_core tac_list :=
+Ltac2 ff_old_core tac_list :=
   let tac := tac_list_thunk tac_list in
   repeat (
-    ff tac;
+    ff_old tac;
     tac ();
-    ff tac
+    ff_old tac
   ).
 
-Ltac2 Notation "ff" 
+Ltac2 Notation "ff_old" 
   tacs(opt(list0(tactic(0), ","))) 
   :=
   (* Default timeout of 30 seconds *)
-  Control.timeout 30 (fun () => ff_core tacs).
+  Control.timeout 30 (fun () => ff_old_core tacs).
 
 Ltac2 rec target_break_match
   (h : ident) :=
@@ -1038,116 +1769,6 @@ Ltac2 rec target_break_match
 Ltac2 Notation "target_break_match"
   h(ident) :=
   target_break_match h.
-
-Ltac2 pose_proof (x : constr) (y : ident option) :=
-  Control.enter (fun () => 
-  match y with
-  | None => ltac1:(x |- pose proof x) (Ltac1.of_constr x)
-  | Some yval =>
-    ltac1:(x y |- pose proof x as y) (Ltac1.of_constr x) (Ltac1.of_ident yval)
-  end).
-
-(*  
-----------------------------------------------
-My semi-compatability layer for Ltac1 -> Ltac2
-----------------------------------------------
-*)
-
-Ltac2 Notation "pose" "proof" 
-  x(constr)
-  y(opt(seq("as", ident))) :=
-  pose_proof x y.
-
-Ltac2 Notation "pp"
-  x(constr)
-  y(opt(seq("as", ident))) :=
-  pose_proof x y.
-
-Ltac2 Notation "pps" 
-  xs(list0(constr, ",")) :=
-  List.fold_left (fun _ x => pose_proof x None) () xs.
-
-Ltac2 Notation "clearbody" 
-  ids(list1(ident)) :=
-  Std.clearbody ids.
-
-Ltac2 Notation "ref" x(preterm) :=
-  ltac1:(x |- refine x) (Ltac1.of_preterm x).
-
-Ltac2 Notation congruence := congruence.
-Ltac2 Notation cong := congruence.
-
-Ltac2 Notation "intuition" := ltac1:(intuition).
-Ltac2 Notation intuition := intuition.
-
-Ltac2 Notation "exfalso" := ltac1:(exfalso).
-Ltac2 Notation exfalso := exfalso.
-
-Ltac2 Notation "ar"
-  dbs(opt(seq("with", hintdb)))
-  cl(opt(clause))
-  tac(opt(seq("by", thunk(tactic))))
-  :=
-  let db := default_list (default_db dbs) in
-  let cl := default_on_concl cl in
-  try (Std.autorewrite true tac db cl).
-
-
-(**
- * [fresh_names_in_goal n basename] generates a list of [n] fresh identifiers
- * that do not conflict with names currently in the goal or with each other.
- * All generated names will have [basename] as their prefix.
- *)
-Ltac2 rec fresh_names_in_goal (n : int) (basename : ident) (avoid : Fresh.Free.t) (acc : ident list) : ident list :=
-  if Int.le n 0 then
-    List.rev acc
-  else
-    let h := Fresh.fresh avoid basename in
-    fresh_names_in_goal (Int.sub n 1) basename 
-      (Free.union (Free.of_ids [h]) avoid) (h :: acc).
-
-(**
- * A convenient wrapper to generate a list of [n] fresh hypothesis names.
- *)
-Ltac2 fresh_hyps (n : int) (basename : string) : ident list :=
-  match Ident.of_string basename with
-  | None => throw_invalid_argument "fresh_hyps" "basename must be a valid identifier"
-  | Some name =>
-    (* Generate fresh names in the goal, avoiding conflicts with existing names *)
-    fresh_names_in_goal n name (Fresh.Free.of_goal ()) []
-  end.
-
-(**
- * A variant of [fresh_hyp] that always generates a single fresh name.
- *)
-Ltac2 fresh_hyp (basename : string) : ident :=
-  let avoid := Fresh.Free.of_goal () in
-  match Ident.of_string basename with
-  | None => throw_invalid_argument "fresh_hyp" "basename must be a valid identifier"
-  | Some basename_ident =>
-    (* Generate a single fresh name, avoiding conflicts with existing names *)
-    Fresh.fresh avoid basename_ident
-  end.
-
-Ltac2 Notation "rep" 
-  t1(constr)
-  t2(seq("with", constr))
-  tac(opt(seq("by", thunk(tactic)))) 
-  :=
-  match tac with
-  | None => 
-    ltac1:(t1 t2 |- replace t1 with t2)
-      (Ltac1.of_constr t1) 
-      (Ltac1.of_constr t2) 
-  | Some t' => 
-    (ltac1:(t1 t2 |- replace t1 with t2) 
-      (Ltac1.of_constr t1) 
-      (Ltac1.of_constr t2)) > [ | solve [ t' () ] ]
-  end.
-
-Ltac2 guard_goals_le n :=
-  let num := numgoals () in
-  if (Int.le num n) then () else fail.
 
 Ltac2 Notation "setoid_rw_all" h(constr) :=
   repeat (
