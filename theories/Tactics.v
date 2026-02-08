@@ -1388,6 +1388,14 @@ Ltac2 grinder (queue : ident list) :=
               destruct $hv as [$h1 | $h2] > 
               [ aux (h1 :: rest) | aux (h2 :: rest) ]
           
+          | { _ } + { _ } =>
+              (* Branching! We must recurse in BOTH branches. *)
+              let h1 := fresh_hyp "Hsumb_l" in
+              let h2 := fresh_hyp "Hsumb_r" in
+              (* logic: destruct, then in each branch, continue grinding with the specific new hyp *)
+              destruct $hv as [$h1 | $h2] > 
+              [ aux (h1 :: rest) | aux (h2 :: rest) ]
+          
           | exists _, _ =>
               let h_body := fresh_hyp "Hex" in
               destruct $hv as [? $h_body];
@@ -1423,66 +1431,69 @@ Ltac2 grinder (queue : ident list) :=
   in
   aux queue.
 
+Ltac2 tab_char () : char := Char.of_int 9.
+
 (* Entry point for cleaning context *)
 Ltac2 saturate_context () :=
   grinder (active_hyps ()).
 
+
 (* --- THE UNIFIED LOOP --- *)
 Ltac2 crush_loop 
+    (debug : bool)
     (inter_solver : unit -> unit) 
     (leaf_solver : unit -> unit) :=
+  let dprint d s := 
+    if debug 
+    then (printf "%s%s" (String.make d (tab_char ())) s) 
+    else ()
+  in
   (* TODO: Rescue should not backtrack nearly as much!!! *)
-  let rescue f :=
+  let rescue d f :=
+    dprint d "Crush: Rescue";
     try (leaf_solver ());
 
     (* A. Try reducing the goal specifically *)
     Control.plus 
       (fun () => 
+        dprint d "Crush: Fall-through 1";
         progress (fun () => cbn);
         (* If cbn changed something, loop again to see if new matches appeared *)
-        f ())
+        f (Int.add d 1))
       (fun _ => 
         (* B. If goal didn't change, try reducing ALL hyps. 
             This is aggressive but necessary for hidden matches in hyps. *)
         Control.plus 
           (fun () =>
-              progress (fun () => cbn in * ); f ())
-          
+            dprint d "Crush: Fall-through 2";
+            progress (fun () => cbn in * ); 
+            f (Int.add d 1)
+          )
           (fun _ => ())
       )
   in
-  let rec aux () :=
+  let rec aux d :=
     saturate_context ();
     try (inter_solver ());
     Control.enter (fun () => 
-      
       lazy_match! goal with
       (* --------------------------------------------------------- *)
       (* 3. GOAL STRUCTURE                                         *)
       (* --------------------------------------------------------- *)
       | [ |- ~ _ ] =>
+          dprint d "Crush: Negation";
           let hc := fresh_hyp "HC" in
-          intro $hc; aux ()
+          intro $hc; aux d
       | [ |- True ] => trivial
       | [ |- _ /\ _ ] => 
-          split > [ aux () | aux () ]
-      
-      | [ |- _ \/ _ ] => 
-          try (
-            solve [ left; aux () ];
-            solve [ right; aux () ]
-          );
-          rescue aux
-          
-      | [ |- exists _, _ ] => 
-        (* only lock in existentials if solving *)
-        try (eexists; solve [ aux () ]);
-        rescue aux
+          dprint d "Crush: And";
+          split > [ aux (Int.add d 1) | aux (Int.add d 1) ]
           
       | [ |- forall _, _ ] => 
+        dprint d "Crush: Forall";
         let v := get_forall_var_name (Control.goal ()) in
         let x := fresh_hyp (Ident.to_string v) in
-        intros $x; aux ()
+        intros $x; aux d
 
       (* --------------------------------------------------------- *)
       (* 4. MATCH DESTRUCTION (The "Smart" Step)                   *)
@@ -1491,18 +1502,66 @@ Ltac2 crush_loop
         Note: This can be expensive, so it's lower priority than basic cleanup. *)
 
       | [ |- context [ match ?t with _ => _ end ] ] =>
-          dest_match t; Control.enter aux
+          dprint d "Crush: Match in Goal";
+          dest_match t; Control.enter (fun () => aux d)
+
+
+      (* NOTE: These are intentionally after the 
+        "match destruction" step, because it may be the case
+        that the depending on the outcome of the match, the branch/
+        eexists picked will be different.
+
+        Essentially: 
+        "it is best to PICK a branch/variable as late as possible"
+      *)
+      | [ |- { _ } + { _ } ] => 
+          dprint d "Crush: Sumbool";
+          try (
+            solve [ 
+              dprint d "Crush: Sumbool Left";
+              left; aux (Int.add d 1) 
+            ]
+          );
+          try (
+            solve [ 
+              dprint d "Crush: Sumbool Right";
+              right; aux (Int.add d 1) 
+            ]
+          );
+          rescue d aux
+      
+      | [ |- _ \/ _ ] => 
+          dprint d "Crush: Or";
+          try (
+            solve [ 
+              dprint d "Crush: Or Left";
+              left; aux (Int.add d 1) 
+            ]
+          );
+          try (
+            solve [ 
+              dprint d "Crush: Or Right";
+              right; aux (Int.add d 1) 
+            ]
+          );
+          rescue d aux
+          
+      | [ |- exists _, _ ] => 
+        dprint d "Crush: Exists";
+        (* only lock in existentials if solving *)
+        try (eexists; solve [ aux (Int.add d 1) ]);
+        rescue d aux
 
       (* --------------------------------------------------------- *)
       (* TRY REDUCTION *)
       (* --------------------------------------------------------- *)
       | [ |- _ ] => 
         (* only option: hope for rescue!!! *)
-        rescue aux
+        rescue d aux
       end
     )
   in
-  aux ().
+  aux 0.
 
 (*
 Ltac2 dest_match (t : constr) solver resume :=
@@ -1646,6 +1705,17 @@ Ltac2 Notation "find_relevant_entry" comp(constr) map(constr) :=
   find_relevant_entry comp map.
 
 Ltac2 Notation "ff" 
+  tacs(opt(seq("with", list0(thunk(tactic(0)), ",")))) :=
+  let inter_tac := tac_list_thunk tacs in
+  let res_tac () := eauto; reflexivity in
+  Control.enter (
+    fun () =>
+    try (res_tac ());
+    try (inter_tac ());
+    Control.enter (fun () => crush_loop false inter_tac res_tac)
+  ).
+
+Ltac2 Notation "dff" 
   tacs(opt(seq("with", list0(tactic(0), ",")))) :=
   let inter_tac := tac_list_thunk tacs in
   let res_tac () := eauto; reflexivity in
@@ -1653,7 +1723,7 @@ Ltac2 Notation "ff"
     fun () =>
     try (res_tac ());
     try (inter_tac ());
-    Control.enter (fun () => crush_loop inter_tac res_tac)
+    Control.enter (fun () => crush_loop true inter_tac res_tac)
   ).
 
 Ltac2 Notation "fwd" :=

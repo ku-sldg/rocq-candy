@@ -52,9 +52,9 @@ Module Nat_Stringification.
   Lemma nat_lts_lt : forall n m,
     Box (nat_lts n m) <-> lt n m.
   Proof.
-    induction n; split; ff with l;
-    Control.enter (fun () => box_simpl); ff.
-    - find_eapply_lem_hyp IHn; ff with l.
+    induction n; split; ff with lia;
+    Control.enter (box_simpl0); ff.
+    - find_eapply_lem_hyp IHn; ff with lia.
     - erewrite IHn; lia.
   Qed.
 
@@ -67,14 +67,14 @@ Module Nat_Stringification.
   Theorem nat_lts_impl_lt_sprop : forall {n m},
     nat_lts n m -> lt_sprop n m.
   Proof.
-    induction n; ff; try (inv H); ff;
+    induction n; ff with box_simpl;
     econstructor; ff.
   Qed.
 
   Lemma nat_lts_dec : forall n m,
     { Box (nat_lts n m) } + { ~ Box (nat_lts n m) }.
   Proof.
-    induction n; ff; right; ff; invc HC; invc unbox.
+    induction n; ff with box_simpl.
   Defined.
 
   Lemma not_S_10_lt_10 : forall n,
@@ -124,10 +124,12 @@ Module Nat_Stringification.
     | right H => err "Character is not a digit"%string
     end.
   Close Scope char_scope.
-
+    
   Lemma nat_lt_10_ascii_invol : forall n (HN : lt_sprop n 10),
     nat_lt_10_from_ascii (nat_lt_10_to_ascii n HN) = res (exist _ n (box HN)).
   Proof.
+
+
     induction n; intros; ff with l;
     try (ltac1:(exfalso; eauto; fail)); box_simpl.
     - eapply lt_sprop_impl_nat_lts in HN as HN'; simpl in *; box_simpl.
@@ -141,13 +143,13 @@ Module Nat_Stringification.
   Proof.
     intros.
     erewrite nat_lts_lt in *.
-    ff with l.
+    ff with lia.
   Qed.
 
   Lemma n_mod_10_lt_10 : forall n,
     Nat.modulo n 10 < 10.
   Proof.
-    ff with l.
+    ff with lia.
   Qed.
 
   Lemma n_mod_sprop : forall n,
@@ -164,7 +166,7 @@ Module Nat_Stringification.
     ~ (Box (nat_lts n 10)) ->
     Nat.div n 10 < n.
   Proof.
-    intros; eapply PeanoNat.Nat.div_lt; ff with l.
+    intros; eapply PeanoNat.Nat.div_lt; ff with lia.
     erewrite nat_lts_lt in *.
     lia.
   Qed.
