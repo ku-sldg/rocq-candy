@@ -1461,18 +1461,19 @@ Ltac2 dest_match (t : constr) : unit :=
   let head := get_head t in
   let head_type := Constr.type head in (* Fast: O(1) lookup for Var/Const *)
   let codomain := get_codomain head_type in
-  let cod_head := get_head codomain in
   
   let want_eqn := 
-    if Constr.equal cod_head 'sumbool then false (* Always skip equation for sumbool *)
-    else if Constr.equal cod_head 'bool then 
+    match! codomain with
+    | sumbool _ _ => false (* Always skip equation for sumbool *)
+    | bool => 
       (* Skip equation ONLY if 't' is a raw variable. 
          If 't' is 'f x', we want 'Heq : f x = true'. *)
       match Constr.Unsafe.kind t with
       | Constr.Unsafe.Var _ => false
       | _ => true
       end
-    else true (* Default: Generate equation *)
+    | _ => true (* Default: Generate equation *)
+    end
   in
 
   if want_eqn then
