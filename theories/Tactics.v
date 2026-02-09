@@ -1296,7 +1296,9 @@ Ltac2 inject_and_subst (h : ident) : unit :=
 Ltac2 dest_match (t : constr) : unit :=
   let h_eq := fresh_hyp "Heq" in
   (* dest_match logic: destruct and handle the equality *)
-  destruct $t eqn:$h_eq;
+  destruct $t eqn:$h_eq
+  (*
+  ;
   Control.enter (fun () =>
     (* In each branch, try to subst if it's a var, or rewrite if it's a term *)
     try (
@@ -1313,6 +1315,8 @@ Ltac2 dest_match (t : constr) : unit :=
         end
     )
   ).
+  *)
+  .
 
 (* OPTIMIZATION: Filter out "Boring" hypotheses. 
    We don't want to grind 'n : nat', 'A : Type', or 'H : A -> B'.
