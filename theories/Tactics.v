@@ -1492,6 +1492,17 @@ Ltac2 crush1
           let hc := fresh_hyp "HC" in
           intro $hc; rec_F d
 
+      | [ |- _ <-> _ ] => 
+          dprint debug d "Crush: Iff";
+          split > [ 
+            Control.once (fun () =>
+              dprint debug d "Crush: Iff Left"; rec_F (Int.add d 1))
+            | 
+            Control.once (fun () =>
+              (dprint debug d "Crush: Iff Right"; rec_F (Int.add d 1))
+            )
+          ]
+
       | [ |- _ /\ _ ] => 
           dprint debug d "Crush: And";
           split > [ 
