@@ -66,4 +66,3 @@ Fixpoint result_fold {A B E : Type} (f : A -> B -> Result B E)
       acc' <- f h acc;;
       result_fold f acc' t
   end.
-

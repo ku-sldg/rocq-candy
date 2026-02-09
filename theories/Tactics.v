@@ -1708,13 +1708,15 @@ Ltac2 dprint (debug : bool) :=
 
 Ltac2 rescue debug leaf_solver inter_solver d rec_F :=
   dprint debug d "Crush: Rescue";
-  try (leaf_solver ());
-  try (inter_solver ());
 
   let progressed := Control.plus 
     (fun () => 
         dprint debug d "Crush: Fall-through";
-        progress (fun () => cbn in *); 
+        progress (fun () => 
+          try (leaf_solver ());
+          try (inter_solver ());
+          cbn in *
+        ); 
         true)
     (fun _ => false)
   in
@@ -1729,15 +1731,15 @@ Ltac2 rescue debug leaf_solver inter_solver d rec_F :=
 (* --- THE UNIFIED LOOP --- *)
 Ltac2 crush1 
     (debug : bool)
-    (inter_solver : unit -> unit) 
+    (* (inter_solver : unit -> unit)  *)
     (rec_F : int -> unit)
     (d : int)
     (rescue : int -> (int -> unit) -> unit) :=
   dprint debug d "Crush: Saturating Context";
   saturate_context ();
   Control.enter (fun () => 
-    dprint debug d "Crush: Trying Inter-solver";
-    try (inter_solver ());
+    (* dprint debug d "Crush: Trying Inter-solver";
+    try (inter_solver ()); *)
     Control.enter (fun () =>
       dprint debug d "Crush: Analyzing Goal";
       lazy_match! goal with
@@ -1868,7 +1870,6 @@ Ltac2 crush_once0 debug tacs :=
   let inter_tac := tac_list_thunk tacs in
   crush1 
     debug
-    inter_tac
     (fun _ => ()) 
     0 
     (rescue debug res_tac inter_tac).
@@ -1886,7 +1887,7 @@ Ltac2 crush_loop
     (inter_solver : unit -> unit) 
     (leaf_solver : unit -> unit) :=
   let rec aux d := 
-    crush1 debug inter_solver aux d 
+    crush1 debug aux d 
       (rescue debug leaf_solver inter_solver)
   in
   aux 0.
