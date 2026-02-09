@@ -1314,13 +1314,13 @@ Ltac2 Notation "rw_all" :=
 
 Ltac2 Notation rw_all := rw_all.
 
-Ltac2 tac_list_thunk tac_list :=
+Ltac2 tac_list_thunk def_tac tac_list :=
   match tac_list with
-  | None => fun () => ()
+  | None => def_tac
   | Some tacs => 
       List.fold_left 
         (fun acc x => (fun next => acc (); x (); next)) 
-        (fun () => ()) 
+        (def_tac) 
         tacs
   end.
 
@@ -1730,15 +1730,14 @@ Ltac2 Notation saturate_context := grinder false.
 (* Entry point for cleaning context *)
 Ltac2 Notation dsaturate_context :=  grinder true.
 
-Ltac2 rescue debug leaf_solver inter_solver d rec_F :=
+Ltac2 rescue debug try_solver d rec_F :=
   dprint debug d "Crush: Rescue";
 
   let progressed := Control.plus 
     (fun () => 
         dprint debug d "Crush: Fall-through";
         progress (fun () => 
-          try (leaf_solver ());
-          try (inter_solver ());
+          try (try_solver ());
           cbn in *
         ); 
         true)
@@ -1885,32 +1884,32 @@ Ltac2 crush1
     end
   ).
 
-Ltac2 crush_once0 debug tacs :=
-  let res_tac () := eauto; reflexivity in
-  let inter_tac := tac_list_thunk tacs in
-  crush1 
-    debug
-    (fun _ => ()) 
-    0 
-    (rescue debug res_tac inter_tac).
+Ltac2 crush (debug : bool) (loop : bool) tacs :=
+  let res_tac () := eauto in
+  let inter_tac := tac_list_thunk res_tac tacs in
+  if loop then (
+    try (inter_tac ());
+    let rec aux d := crush1 debug aux d (rescue debug inter_tac) in
+    Control.enter (fun () => aux 0)
+  ) else (
+    crush1 debug (fun _ => ()) 0 (rescue debug inter_tac)
+  ).
 
-Ltac2 Notation "crush_once" 
+Ltac2 Notation "ff0" 
   tacs(opt(seq("with", list0(thunk(tactic(0)), ",")))) :=
-  crush_once0 false tacs.
+  crush false false tacs.
 
-Ltac2 Notation "dcrush_once" 
+Ltac2 Notation "dff0" 
   tacs(opt(seq("with", list0(thunk(tactic(0)), ",")))) :=
-  crush_once0 true tacs.
+  crush true false tacs.
 
-Ltac2 crush_loop 
-    (debug : bool)
-    (inter_solver : unit -> unit) 
-    (leaf_solver : unit -> unit) :=
-  let rec aux d := 
-    crush1 debug aux d 
-      (rescue debug leaf_solver inter_solver)
-  in
-  aux 0.
+Ltac2 Notation "ff" 
+  tacs(opt(seq("with", list0(thunk(tactic(0)), ",")))) :=
+  crush false true tacs.
+
+Ltac2 Notation "dff" 
+  tacs(opt(seq("with", list0(thunk(tactic(0)), ",")))) :=
+  crush true true tacs.
 
 Ltac2 rec find_relevant_entry (comp : constr) (vl : constr) :=
   match! vl with
@@ -1924,22 +1923,6 @@ Ltac2 rec find_relevant_entry (comp : constr) (vl : constr) :=
 
 Ltac2 Notation "find_relevant_entry" comp(constr) map(constr) := 
   find_relevant_entry comp map.
-
-Ltac2 ff0 debug inter_tac :=
-  let res_tac () := eauto; reflexivity in
-  Control.enter (fun () =>
-    try (res_tac ());
-    try (inter_tac ());
-    Control.enter (fun () => crush_loop debug inter_tac res_tac)
-  ).
-
-Ltac2 Notation "ff" 
-  tacs(opt(seq("with", list0(thunk(tactic(0)), ",")))) :=
-  ff0 false (tac_list_thunk tacs).
-
-Ltac2 Notation "dff" 
-  tacs(opt(seq("with", list0(thunk(tactic(0)), ",")))) :=
-  ff0 true (tac_list_thunk tacs).
 
 Ltac2 Notation "fwd" :=
   Control.enter (fun () =>
@@ -2025,7 +2008,7 @@ Ltac2 Notation d := d0 ().
 (* [interp_tac_str] interprets a string as a sequence of tactics. *)
 
 Ltac2 ff_old_core tac_list :=
-  let tac := tac_list_thunk tac_list in
+  let tac := tac_list_thunk (fun () => ()) tac_list in
   repeat (
     ff_old tac;
     tac ();
