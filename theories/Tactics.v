@@ -1450,12 +1450,10 @@ Ltac2 dprint (debug : bool) :=
     then (printf "%s%s" (String.make tabs tab_char) s) 
     else ().
 
-Ltac2 rescue debug leaf_solver d rec_F :=
+Ltac2 rescue debug leaf_solver inter_solver d rec_F :=
   dprint debug d "Crush: Rescue";
-
-  (* STEP 1: Run leaf_solver. 
-      If it succeeds, return 'true' and DELETE the backup branch. *)
   try (leaf_solver ());
+  try (inter_solver ());
 
   let progressed := Control.plus 
     (fun () => 
@@ -1609,32 +1607,31 @@ Ltac2 crush1
     )
   ).
 
-Ltac2 Notation "crush_once" 
-  tacs(opt(seq("with", list0(thunk(tactic(0)), ",")))) :=
+Ltac2 crush_once0 debug tacs :=
   let res_tac () := eauto; reflexivity in
+  let inter_tac := tac_list_thunk tacs in
   crush1 
-    false 
-    (tac_list_thunk tacs) 
+    debug
+    inter_tac
     (fun _ => ()) 
     0 
-    (rescue false res_tac).
+    (rescue debug res_tac inter_tac).
+
+Ltac2 Notation "crush_once" 
+  tacs(opt(seq("with", list0(thunk(tactic(0)), ",")))) :=
+  crush_once0 false tacs.
 
 Ltac2 Notation "dcrush_once" 
   tacs(opt(seq("with", list0(thunk(tactic(0)), ",")))) :=
-  let res_tac () := eauto; reflexivity in
-  crush1 
-    true 
-    (tac_list_thunk tacs) 
-    (fun _ => ()) 
-    0 
-    (rescue true res_tac).
+  crush_once0 true tacs.
 
 Ltac2 crush_loop 
     (debug : bool)
     (inter_solver : unit -> unit) 
     (leaf_solver : unit -> unit) :=
   let rec aux d := 
-    crush1 debug inter_solver aux d (rescue debug leaf_solver)
+    crush1 debug inter_solver aux d 
+      (rescue debug leaf_solver inter_solver)
   in
   aux 0.
 
