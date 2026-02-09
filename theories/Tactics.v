@@ -1294,9 +1294,41 @@ Ltac2 inject_and_subst (h : ident) : unit :=
    Optimized to avoid blind rewriting.
 *)
 Ltac2 dest_match (t : constr) : unit :=
-  let h_eq := fresh_hyp "Heq" in
-  (* dest_match logic: destruct and handle the equality *)
-  destruct $t eqn:$h_eq
+  (* 1. Determine if we want an equation. *)
+  let want_eqn := 
+    match Constr.Unsafe.kind t with
+    | Constr.Unsafe.Var _ => 
+        lazy_match! (Constr.type t) with
+        | bool => false
+        | sumbool _ _ => false
+        | _ => true
+        end
+    | _ => 
+        (* It is a complex term (Application, Cast, etc.).
+           We ALWAYS want an equation for these (e.g. f x).
+           We skip checking the type entirely to save time. *)
+        true
+    end
+  in
+
+  (* 2. Destruct accordingly *)
+  if want_eqn then
+    let h_eq := fresh_hyp "Heq" in 
+    destruct $t eqn:$h_eq
+  else destruct $t.
+
+  (* match! Constr.type t with
+  | bool => 
+      (* For bools, we don't generate an equality since it's not useful. *)
+      destruct $t
+  | sumbool _ _  =>
+      (* For sumbool, we also don't generate an equality since it's not useful. *)
+      destruct $t
+  | _ =>
+    let h_eq := fresh_hyp "Heq" in
+    (* dest_match logic: destruct and handle the equality *)
+    destruct $t eqn:$h_eq
+  end. *)
   (*
   ;
   Control.enter (fun () =>
@@ -1316,7 +1348,55 @@ Ltac2 dest_match (t : constr) : unit :=
     )
   ).
   *)
-  .
+
+Example dest_match_works : forall (x : nat) (l : list nat) (b : bool) 
+  (p : { 1 = 1 } + { 1 = 2 }),
+  (match x with
+    | 0 => true
+    | S _ => true
+    end = true
+  ) ->
+  (match l with
+    | [] => 0
+    | _ :: _ => 0
+  end = 0) ->
+  ((if b then 0 else 0) = 0) ->
+  ((if p then 0 else 0) = 0) ->
+  True.
+Proof.
+  intros x l b p Hx Hl Hb Hp.
+  let assert_hyp should_exist h := 
+    let hyps := Control.hyps () in
+    match List.find_opt (fun (i, _, _) => Ident.equal i h) hyps with
+    | Some _ => if should_exist then () else fail
+    | None => if should_exist then fail else ()
+    end
+  in
+  dest_match 'x > [ 
+    assert_hyp true ident:(Heq) 
+    (* solve second just to be simple*)
+    | assert_hyp true ident:(Heq); apply I 
+  ]; clear Heq Hx x;
+  dest_match 'l > [ 
+    assert_hyp true ident:(Heq) 
+    (* solve second just to be simple*)
+    | assert_hyp true ident:(Heq); apply I 
+  ]; clear Heq Hl l;
+  (* NOTE for the next two, they don't create Heq
+    since they are bool~ish and its just garbage in the environment
+  *)
+  dest_match 'b > [ 
+    assert_hyp false ident:(Heq) 
+    (* solve second just to be simple*)
+    | assert_hyp false ident:(Heq); apply I 
+  ]; clear Hb b;
+  dest_match 'p > [ 
+    assert_hyp false ident:(Heq) 
+    (* solve second just to be simple*)
+    | assert_hyp false ident:(Heq); apply I 
+  ]; clear Hp p.
+  apply I.
+Qed.
 
 (* OPTIMIZATION: Filter out "Boring" hypotheses. 
    We don't want to grind 'n : nat', 'A : Type', or 'H : A -> B'.
