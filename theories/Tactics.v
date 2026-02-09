@@ -1463,6 +1463,45 @@ Proof.
   exact I.
 Qed.
 
+Ltac2 dest_match_adv
+  (t : constr) 
+  (cont : int -> ident option -> ident list -> unit) 
+  : unit :=
+  
+  (* 1. Get basic inductive info (just needed for branch count) *)
+  let ty := Constr.type t in
+  let (ind, _) := 
+    match Unsafe.kind ty with
+    | Unsafe.Ind i u => (i, u)
+    | _ => Control.throw (Invalid_argument 
+      (Some (Message.of_string "Term is not an inductive type"))
+    )
+    end 
+  in
+  let data := Ind.data ind in
+  let n_ctors := Ind.nconstructors data in
+  (* 2. Determine if we should generate an equation *)
+  let use_eqn := 
+    match! Constr.type t with
+    | sumbool _ _ => false
+    | bool => Bool.neg (Constr.is_var t)
+    | _ => true
+    end
+  in
+
+  if use_eqn then
+    let heq := fresh_hyp "Heq" in
+    let tacs := List.init n_ctors (fun i () => 
+       cont i (Some heq) []
+    ) in
+    destruct $t eqn:$heq; Control.dispatch tacs
+  else
+    let tacs := List.init n_ctors (fun i () => 
+       cont i None []
+    ) in
+    destruct $t; Control.dispatch tacs
+.
+
 Ltac2 dest_match (t : constr) : unit :=
   let no_eqn := 
     match! Constr.type t with
@@ -1475,6 +1514,24 @@ Ltac2 dest_match (t : constr) : unit :=
   else 
     let heq := fresh_hyp "Heq" in
     destruct $t eqn:$heq.
+
+Ltac2 dest_match_cont (t : constr) (cont : int -> ident option -> unit) : unit :=
+  let no_eqn := 
+    match! Constr.type t with
+    | sumbool _ _ => true
+    | bool => Constr.is_var t
+    | _ => false
+    end
+  in
+  (* NOTE: Here w eknow no_eqn -> 2 cases! *)
+  if no_eqn then destruct $t > [ cont 0 None | cont 1 None ]
+  else 
+    let heq := fresh_hyp "Heq" in
+    let goal_num := Ref.ref 1 in
+    destruct $t eqn:$heq; Control.enter (fun () => 
+      cont (Ref.get goal_num) (Some heq);
+      Ref.incr goal_num
+    ).
 
 Example test_dest_match_comprehensive : 
   forall (n : nat) (b : bool) (s : {1=1} + {1=2}),
@@ -1683,7 +1740,15 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
           | context [ match ?v with _ => _ end ] =>
               printer d (fun () => sprintf "Grinder: Match on Hyp %I" hid);
                 (* Warning: This can loop if dest_match doesn't eliminate the match. *)
-              dest_match v; Control.enter (fun () => restart (Int.add d 1) aux)
+              dest_match_cont v (fun i idopt =>
+                printer d (fun () => sprintf "Grinder: Match Branch %i on Hyp %I" i hid);
+                match idopt with
+                | None => aux (Int.add d 1) (hid :: rest)
+                | Some eqn_id => 
+                    (* We know the match is gone, so we can keep grinding this hyp if we want! *)
+                    aux (Int.add d 1) (eqn_id :: hid :: rest)
+                end
+                )
               
           | ?x = ?y =>
               printer d (fun () => sprintf "Grinder: Equality on Hyp %I" hid);
@@ -1795,11 +1860,8 @@ Ltac2 crush1
 
     | [ |- context [ match ?t with _ => _ end ] ] =>
         printer d (fun () => "Crush: Match in Goal");
-        let goal_num := Ref.ref 1 in
-        dest_match t; 
-        Control.enter (fun () => 
-          printer d (fun () => sprintf "Crush: Match in Goal Branch %i" (Ref.get goal_num));
-          Ref.incr goal_num;
+        dest_match_cont t (fun i _id_opt => 
+          printer d (fun () => sprintf "Crush: Match in Goal Branch %i" i);
           rec_F (Int.add d 1)
         )
 
