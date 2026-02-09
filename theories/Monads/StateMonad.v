@@ -57,11 +57,11 @@ Qed.
 Lemma state_bind_right_id : forall St A (m : State St A) init,
   (state_bind m (fun a => ret a)) init = m init.
 Proof.
-  ff; u (); ff.
+  ff with u.
 Qed.
 
 Lemma state_bind_assoc : forall St A B C (m : State St A) (f : A -> State St B) (g : B -> State St C) init,
   state_bind (state_bind m f) g init = state_bind m (fun x => state_bind (f x) g) init.
 Proof.
-  ff; u (); ff.
+  ff with u.
 Qed.

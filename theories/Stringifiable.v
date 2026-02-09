@@ -128,10 +128,7 @@ Module Nat_Stringification.
   Lemma nat_lt_10_ascii_invol : forall n (HN : lt_sprop n 10),
     nat_lt_10_from_ascii (nat_lt_10_to_ascii n HN) = res (exist _ n (box HN)).
   Proof.
-
-
-    induction n; intros; ff with l;
-    try (ltac1:(exfalso; eauto; fail)); box_simpl.
+    induction n; intros; ff with lia.
     - eapply lt_sprop_impl_nat_lts in HN as HN'; simpl in *; box_simpl.
       destruct n0; ff; box_simpl.
   Qed.

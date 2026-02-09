@@ -1302,8 +1302,11 @@ Ltac2 dest_match (t : constr) : unit :=
     try (
         let heq_hyp := Control.hyp h_eq in
         match Constr.Unsafe.kind t with
-        | Constr.Unsafe.Var _ => Std.subst [h_eq]
+        | Constr.Unsafe.Var tid => 
+          (* subst the variable *)
+          Std.subst [tid]
         | _ => 
+          Std.subst [h_eq];
           (* It is a term equality, e.g., (f x) = true. 
               Rewrite it in the goal and hyps to simplify context. *)
           rewrite $heq_hyp in *
@@ -1431,79 +1434,108 @@ Ltac2 grinder (queue : ident list) :=
   in
   aux queue.
 
-Ltac2 tab_char () : char := Char.of_int 9.
-
 (* Entry point for cleaning context *)
 Ltac2 saturate_context () :=
   grinder (active_hyps ()).
 
+Ltac2 sprintf fmt := 
+  Message.Format.kfprintf (fun x => Message.to_string x) fmt.
+
+Ltac2 Notation "sprintf" fmt(format) := sprintf fmt.
+
+Ltac2 dprint (debug : bool) :=
+  let tab_char := Char.of_int 9 in
+  fun (tabs : int) (s : string) =>
+    if debug 
+    then (printf "%s%s" (String.make tabs tab_char) s) 
+    else ().
+
+Ltac2 rescue debug leaf_solver d rec_F :=
+  dprint debug d "Crush: Rescue";
+
+  (* STEP 1: Run leaf_solver. 
+      If it succeeds, return 'true' and DELETE the backup branch. *)
+  try (leaf_solver ());
+
+  let progressed := Control.plus 
+    (fun () => 
+        dprint debug d "Crush: Fall-through";
+        progress (fun () => cbn in *); 
+        true)
+    (fun _ => false)
+  in
+  if progressed then (
+      (* CBN worked, so we recurse *)
+      rec_F (Int.add d 1)
+  ) else (
+      (* Both failed. This is a hard failure. *)
+      dprint debug d "Crush: Rescue Failure - No progress with cbn!"
+  ).
 
 (* --- THE UNIFIED LOOP --- *)
-Ltac2 crush_loop 
+Ltac2 crush1 
     (debug : bool)
     (inter_solver : unit -> unit) 
-    (leaf_solver : unit -> unit) :=
-  let dprint d s := 
-    if debug 
-    then (printf "%s%s" (String.make d (tab_char ())) s) 
-    else ()
-  in
-  (* TODO: Rescue should not backtrack nearly as much!!! *)
-  let rescue d f :=
-    dprint d "Crush: Rescue";
-    try (leaf_solver ());
-
-    (* A. Try reducing the goal specifically *)
-    Control.plus 
-      (fun () => 
-        dprint d "Crush: Fall-through 1";
-        progress (fun () => cbn);
-        (* If cbn changed something, loop again to see if new matches appeared *)
-        f (Int.add d 1))
-      (fun _ => 
-        (* B. If goal didn't change, try reducing ALL hyps. 
-            This is aggressive but necessary for hidden matches in hyps. *)
-        Control.plus 
-          (fun () =>
-            dprint d "Crush: Fall-through 2";
-            progress (fun () => cbn in * ); 
-            f (Int.add d 1)
-          )
-          (fun _ => ())
-      )
-  in
-  let rec aux d :=
-    saturate_context ();
+    (rec_F : int -> unit)
+    (d : int)
+    (rescue : int -> (int -> unit) -> unit) :=
+  dprint debug d "Crush: Saturating Context";
+  saturate_context ();
+  Control.enter (fun () => 
+    dprint debug d "Crush: Trying Inter-solver";
     try (inter_solver ());
-    Control.enter (fun () => 
+    Control.enter (fun () =>
+      dprint debug d "Crush: Analyzing Goal";
       lazy_match! goal with
-      (* --------------------------------------------------------- *)
-      (* 3. GOAL STRUCTURE                                         *)
-      (* --------------------------------------------------------- *)
       | [ |- ~ _ ] =>
-          dprint d "Crush: Negation";
+          dprint debug d "Crush: Negation";
           let hc := fresh_hyp "HC" in
-          intro $hc; aux d
-      | [ |- True ] => trivial
+          intro $hc; rec_F d
+
       | [ |- _ /\ _ ] => 
-          dprint d "Crush: And";
-          split > [ aux (Int.add d 1) | aux (Int.add d 1) ]
+          dprint debug d "Crush: And";
+          split > [ 
+            Control.once (fun () =>
+              dprint debug d "Crush: And Left"; rec_F (Int.add d 1))
+            | 
+            Control.once (fun () =>
+              (dprint debug d "Crush: And Right"; rec_F (Int.add d 1))
+            )
+          ]
           
       | [ |- forall _, _ ] => 
-        dprint d "Crush: Forall";
+        dprint debug d "Crush: Forall";
         let v := get_forall_var_name (Control.goal ()) in
         let x := fresh_hyp (Ident.to_string v) in
-        intros $x; aux d
-
-      (* --------------------------------------------------------- *)
-      (* 4. MATCH DESTRUCTION (The "Smart" Step)                   *)
-      (* --------------------------------------------------------- *)
-      (* We look for match in Goal OR Hyps. 
-        Note: This can be expensive, so it's lower priority than basic cleanup. *)
+        intros $x; rec_F d
 
       | [ |- context [ match ?t with _ => _ end ] ] =>
-          dprint d "Crush: Match in Goal";
-          dest_match t; Control.enter (fun () => aux d)
+          dprint debug d "Crush: Match in Goal";
+          let goal_num := Ref.ref 1 in
+          dest_match t; 
+          Control.enter (fun () => 
+            dprint debug d (sprintf "Crush: Match in Goal Branch %i" (Ref.get goal_num));
+            Ref.incr goal_num;
+            rec_F (Int.add d 1)
+          )
+
+      (* 
+      I don't like this case a lot: it should typically be 
+      unnecessary, but sometimes "inter_solver" will create
+      a match in a hypothesis that needs to be broken down before we can make progress.
+      *)
+      | [ _h : context [ match ?_t with _ => _ end ] |- _ ] =>
+          dprint debug d "Crush: Match in Hypothesis";
+          (* don't increase depth here, 
+          since we aren't making "real" progress on the goal, just rearranging context 
+          *)
+          try (
+            progress (fun () =>
+              cbn in *;
+              saturate_context ()
+            );
+            Control.enter (fun () => rec_F d)
+          )
 
 
       (* NOTE: These are intentionally after the 
@@ -1515,181 +1547,85 @@ Ltac2 crush_loop
         "it is best to PICK a branch/variable as late as possible"
       *)
       | [ |- { _ } + { _ } ] => 
-          dprint d "Crush: Sumbool";
+          dprint debug d "Crush: Sumbool";
           try (
             solve [ 
-              dprint d "Crush: Sumbool Left";
-              left; aux (Int.add d 1) 
+              dprint debug d "Crush: Sumbool Left";
+              left; rec_F (Int.add d 1)
             ]
           );
           try (
             solve [ 
-              dprint d "Crush: Sumbool Right";
-              right; aux (Int.add d 1) 
+              dprint debug d "Crush: Sumbool Right";
+              right; rec_F (Int.add d 1) 
             ]
           );
-          rescue d aux
+          dprint debug d "Crush: Sumbool Failed!";
+          rescue d rec_F
       
       | [ |- _ \/ _ ] => 
-          dprint d "Crush: Or";
+          dprint debug d "Crush: Or";
           try (
             solve [ 
-              dprint d "Crush: Or Left";
-              left; aux (Int.add d 1) 
+              dprint debug d "Crush: Or Left";
+              left; rec_F (Int.add d 1) 
             ]
           );
           try (
             solve [ 
-              dprint d "Crush: Or Right";
-              right; aux (Int.add d 1) 
+              dprint debug d "Crush: Or Right";
+              right; rec_F (Int.add d 1) 
             ]
           );
-          rescue d aux
+          dprint debug d "Crush: Or Failed!";
+          rescue d rec_F
           
       | [ |- exists _, _ ] => 
-        dprint d "Crush: Exists";
+        dprint debug d "Crush: Exists";
         (* only lock in existentials if solving *)
-        try (eexists; solve [ aux (Int.add d 1) ]);
-        rescue d aux
+        try (eexists; solve [ rec_F (Int.add d 1) ]);
+        dprint debug d "Crush: Exists Failed!";
+        rescue d rec_F
 
       (* --------------------------------------------------------- *)
       (* TRY REDUCTION *)
       (* --------------------------------------------------------- *)
       | [ |- _ ] => 
         (* only option: hope for rescue!!! *)
-        rescue d aux
+        dprint debug d "Crush: Fall-through Case";
+        rescue d rec_F
       end
     )
+  ).
+
+Ltac2 Notation "crush_once" 
+  tacs(opt(seq("with", list0(thunk(tactic(0)), ",")))) :=
+  let res_tac () := eauto; reflexivity in
+  crush1 
+    false 
+    (tac_list_thunk tacs) 
+    (fun _ => ()) 
+    0 
+    (rescue false res_tac).
+
+Ltac2 Notation "dcrush_once" 
+  tacs(opt(seq("with", list0(thunk(tactic(0)), ",")))) :=
+  let res_tac () := eauto; reflexivity in
+  crush1 
+    true 
+    (tac_list_thunk tacs) 
+    (fun _ => ()) 
+    0 
+    (rescue true res_tac).
+
+Ltac2 crush_loop 
+    (debug : bool)
+    (inter_solver : unit -> unit) 
+    (leaf_solver : unit -> unit) :=
+  let rec aux d := 
+    crush1 debug inter_solver aux d (rescue debug leaf_solver)
   in
   aux 0.
-
-(*
-Ltac2 dest_match (t : constr) solver resume :=
-  let h := fresh_hyp "Heq" in
-  destruct $t eqn:$h; 
-  (* Try to rewrite it everywhere *)
-  Control.enter (fun () => 
-    let hv := Control.hyp h in
-    try (erewrite $hv in * )
-  ); 
-  (* Do all injections *)
-  Control.enter (fun () => 
-    try find_injection
-  );
-  (* Since we created goals, do contra elimination *)
-  Control.enter solver;
-  (* Continue *)
-  Control.enter resume.
-
-
-Ltac2 rec elim_contras (h : ident) :=
-  (* NOTE: This may get rid of "h", so need to check after *)
-  subst_max;
-  try (
-    cbn in $h;
-    let hv := Control.hyp h in
-    lazy_match! Constr.type hv with
-    | False => exfalso; exact $hv
-    | exists _, _ => 
-      let v := fresh_hyp "v" in
-      let hc := fresh_hyp "hc" in
-      destruct $hv as [$v $hc] > [ elim_contras hc ]
-    (* | forall _, _ =>
-      printf "not handling foralls yet: %I: %t" h hv *)
-    | context [ match ?v with _ => _ end ] =>
-      dest_match v 
-        (fun () => try (elim_contras h))
-        (fun () => try (elim_contras h))
-    | _ \/ _ =>
-      let hc1 := fresh_hyp "hc1" in
-      let hc2 := fresh_hyp "hc2" in
-      destruct $hv as [$hc1 | $hc2] 
-      > [ elim_contras hc1 | elim_contras hc2 ]
-    | _ /\ _ =>
-      let hc1 := fresh_hyp "hc1" in
-      let hc2 := fresh_hyp "hc2" in
-      destruct $hv as [$hc1 $hc2]; 
-      Control.enter (fun () => 
-        try (elim_contras hc1); 
-        try (elim_contras hc2)
-      )
-    | _ => 
-      (* default case, needs to be solvable *)
-      try (simple congruence 1); 
-      (* if not solved, go to the bigger guns *)
-      try (congruence)
-    end
-  ).
-
-Ltac2 Notation "elim_contras" h(ident) := elim_contras h.
-
-Ltac2 Notation "elim_all_contras" :=
-  Control.enter (fun () =>
-    List.iter 
-      (fun (h, _, _) => Control.enter (fun () => elim_contras $h)) 
-      (Control.hyps ())
-  ).
-
-Ltac2 rec ff tac :=
-  subst_max;
-  lazy_match! goal with
-  | [ h : _ /\ _ |- _ ] => 
-    let h1 := fresh_hyp "Hand_l" in
-    let h2 := fresh_hyp "Hand_r" in
-    let hv := Control.hyp h in
-    destruct $hv as [$h1 $h2]; 
-    Control.enter (fun () => 
-      try (elim_contras h1); 
-      try (elim_contras h2)
-    );
-    Control.enter (fun () => ff tac)
-  | [ h : _ \/ _ |- _ ] => 
-    let hor := fresh_hyp "Hor" in
-    let hv := Control.hyp h in
-    (* 
-    we ensure that at least one of the goals is solved 
-    *)
-    try (
-      let ng := numgoals () in
-      destruct $hv as [$hor | $hor];
-      Control.enter (fun () =>
-        try (elim_contras $hor); 
-        Control.enter (fun () => ff tac)
-      );
-      guard_goals_le ng
-    )
-  | [ |- ~ _ ] => 
-    let hc := fresh_hyp "HC" in
-    intro $hc; Control.enter 
-      (fun () => elim_contras $hc; repeat find_injection)
-  | [ |- forall _, _ ] => 
-    let v := get_forall_var_name (Control.goal ()) in
-    let x := fresh_hyp (Ident.to_string v) in
-    intros $x; 
-    (* try to contradict the hypothesis *)
-    Control.enter (fun () => elim_contras $x; repeat find_injection);
-    Control.enter (fun () => ff tac)
-  | [ |- exists _, _ ] => 
-    (* only lock in existentials if solving *)
-    try (eexists; solve [ ff tac ])
-  | [ |- _ /\ _ ] => 
-    (* we really only want to split if both sides get solved *)
-    try (split; solve [ Control.enter (fun () => ff tac) ])
-  | [ |- _ \/ _ ] => 
-    try (left; ff tac; fail);
-    try (right; ff tac; fail)
-  | [ |- context [ match ?v with _ => _ end ] ] =>
-    dest_match v (fun () => elim_all_contras) (fun () => ff tac)
-  | [ |- _ ] => (* default case, use tac *) 
-    try (tac ());
-    (* if not done, do a cbn and continue *)
-    try (
-      progress (fun () => cbn);
-      (* only continue if cbn simplified *)
-      ff tac
-    )
-  end.
-*)
 
 Ltac2 rec find_relevant_entry (comp : constr) (vl : constr) :=
   match! vl with
@@ -1704,27 +1640,21 @@ Ltac2 rec find_relevant_entry (comp : constr) (vl : constr) :=
 Ltac2 Notation "find_relevant_entry" comp(constr) map(constr) := 
   find_relevant_entry comp map.
 
-Ltac2 Notation "ff" 
-  tacs(opt(seq("with", list0(thunk(tactic(0)), ",")))) :=
-  let inter_tac := tac_list_thunk tacs in
+Ltac2 ff0 debug inter_tac :=
   let res_tac () := eauto; reflexivity in
-  Control.enter (
-    fun () =>
+  Control.enter (fun () =>
     try (res_tac ());
     try (inter_tac ());
-    Control.enter (fun () => crush_loop false inter_tac res_tac)
+    Control.enter (fun () => crush_loop debug inter_tac res_tac)
   ).
 
+Ltac2 Notation "ff" 
+  tacs(opt(seq("with", list0(thunk(tactic(0)), ",")))) :=
+  ff0 false (tac_list_thunk tacs).
+
 Ltac2 Notation "dff" 
-  tacs(opt(seq("with", list0(tactic(0), ",")))) :=
-  let inter_tac := tac_list_thunk tacs in
-  let res_tac () := eauto; reflexivity in
-  Control.enter (
-    fun () =>
-    try (res_tac ());
-    try (inter_tac ());
-    Control.enter (fun () => crush_loop true inter_tac res_tac)
-  ).
+  tacs(opt(seq("with", list0(thunk(tactic(0)), ",")))) :=
+  ff0 true (tac_list_thunk tacs).
 
 Ltac2 Notation "fwd" :=
   Control.enter (fun () =>
@@ -1777,14 +1707,12 @@ Ltac2 rec ff_old tac :=
       guard num2 <= num) (Ltac1.of_int num))
   ).
 
-Ltac2 Notation "lia" := 
-  ltac1:(lia).
+Ltac2 Notation "lia" := ltac1:(lia).
 Ltac2 Notation lia := lia.
 
-Ltac2 l := fun _ => try lia.
-Ltac2 Notation "l" := l.
-Ltac2 u := fun _ => ltac1:(repeat autounfold in *).
-Ltac2 Notation "u" := u.
+Ltac2 Notation l := try lia.
+Ltac2 u0 () := ltac1:(repeat autounfold in *).
+Ltac2 Notation u := u0 ().
 
 (* [ux dbs] is a tactic that unfolds the given databases, and always
    includes the core database. *)
@@ -1794,20 +1722,20 @@ Ltac2 autounfold_dbs dbs :=
     (ltac1:(repeat autounfold in *))
     dbs);
   ltac1:(repeat autounfold in *).
-Ltac2 ux dbs := 
+Ltac2 ux0 dbs := 
   (* Always utilize core, but optionally can include extra *)
   fun () =>
   autounfold_dbs (ident:(core) :: dbs).
-Ltac2 Notation "ux" dbs(list0(ident, ",")) := ux dbs.
+Ltac2 Notation "ux" dbs(list0(ident, ",")) := ux0 dbs.
+Ltac2 Notation ux := ux.
 
-Ltac2 a := fun _ => repeat find_apply_hyp_hyp.
-Ltac2 Notation "a" := a.
-Ltac2 r := fun _ => rw_all.
-Ltac2 Notation "r" := r.
-Ltac2 v := fun _ => vm_compute.
-Ltac2 Notation "v" := v.
-Ltac2 d := fun _ => printf "DebugPrint".
-Ltac2 Notation "d" := d.
+Ltac2 a0 () := repeat find_apply_hyp_hyp.
+Ltac2 Notation a := a0 ().
+Ltac2 Notation r := rw_all.
+Ltac2 v0 () := vm_compute.
+Ltac2 Notation v := v0 ().
+Ltac2 d0 () := printf "DebugPrint".
+Ltac2 Notation d := d0 ().
 
 (* [interp_tac_str] interprets a string as a sequence of tactics. *)
 
