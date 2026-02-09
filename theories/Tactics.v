@@ -1340,12 +1340,8 @@ Ltac2 Notation find_contra := find_contra.
 (* --- UTILITIES --- *)
 
 (* Safely get a hypothesis, returning None if it was cleared/substed *)
-Ltac2 safe_hyp (id : ident) 
-    : (ident * constr option * constr) option :=
-  match List.find_opt (fun (i, _, _) => Ident.equal i id) (Control.hyps ()) with
-  | Some h => Some h
-  | None => None
-  end.
+Ltac2 safe_hyp (id : ident) : constr option :=
+  Control.once_plus (fun () => Some (Control.hyp id)) (fun _ => None).
 
 (* --- CORE AUTOMATION --- *)
 
@@ -1626,32 +1622,32 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
       | None => 
           printer d (fun () => sprintf "Grinder: Hyp %I not found - Skipping." hid);
           aux d rest (* It's gone, skip *)
-      | Some (name, _val, type) =>
-        let hv := Control.hyp name in
+      | Some hv =>
+        let type := Constr.type hv in
         (* Check for trivial contradictions first *)
         if is_reflexive type then (
           (* we have to do "try" here because it may be
           used in other hypotheses *)
-          printer d (fun () => sprintf "Grinder: Hyp %I is reflexive - Clearing." name);
-          try (clear $name); 
+          printer d (fun () => sprintf "Grinder: Hyp %I is reflexive - Clearing." hid);
+          try (clear $hid); 
           aux d rest
         ) 
         else if is_discr_equality type then (
-          printer d (fun () => sprintf "Grinder: Hyp %I is discriminative equality - Exfalso." name);
+          printer d (fun () => sprintf "Grinder: Hyp %I is discriminative equality - Exfalso." hid);
           exfalso; congruence
         )
         (* 3. Injectable Equality: S n = S m *)
         else if is_injectable_equality type then (
           (* Inject, get new IDs (n=m), and ADD them to the queue *)
-          printer d (fun () => sprintf "Grinder: Hyp %I is injectable equality - Injecting and adding new hyps." name);
-          try (inject_and_subst name; restart (Int.add d 1) aux)
+          printer d (fun () => sprintf "Grinder: Hyp %I is injectable equality - Injecting and adding new hyps." hid);
+          try (inject_and_subst hid; restart (Int.add d 1) aux)
         )
         else
           (* Inspect type structure *)
           lazy_match! type with
           | False => exfalso; assumption
           | _ /\ _ =>
-              printer d (fun () => sprintf "Grinder: Conj on Hyp %I" name);
+              printer d (fun () => sprintf "Grinder: Conj on Hyp %I" hid);
               (* Split and add children to queue *)
               let h1 := fresh_hyp "Hand_l" in
               let h2 := fresh_hyp "Hand_r" in
@@ -1659,7 +1655,7 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
               aux d (h1 :: h2 :: rest)
           
           | _ \/ _ =>
-              printer d (fun () => sprintf "Grinder: Disj on Hyp %I" name);
+              printer d (fun () => sprintf "Grinder: Disj on Hyp %I" hid);
               (* Branching! We must recurse in BOTH branches. *)
               let h1 := fresh_hyp "Hor_l" in
               let h2 := fresh_hyp "Hor_r" in
@@ -1668,7 +1664,7 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
               [ aux (Int.add d 1) (h1 :: rest) | aux (Int.add d 1) (h2 :: rest) ]
           
           | { _ } + { _ } =>
-              printer d (fun () => sprintf "Grinder: Sumbool on Hyp %I" name);
+              printer d (fun () => sprintf "Grinder: Sumbool on Hyp %I" hid);
               (* Branching! We must recurse in BOTH branches. *)
               let h1 := fresh_hyp "Hsumb_l" in
               let h2 := fresh_hyp "Hsumb_r" in
@@ -1677,7 +1673,7 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
               [ aux (Int.add d 1) (h1 :: rest) | aux (Int.add d 1) (h2 :: rest) ]
           
           | exists _, _ =>
-              printer d (fun () => sprintf "Grinder: Exists on Hyp %I" name);
+              printer d (fun () => sprintf "Grinder: Exists on Hyp %I" hid);
               let h_body := fresh_hyp "Hex" in
               destruct $hv as [? $h_body];
               aux d (h_body :: rest)
@@ -1686,12 +1682,12 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
               Only doing this on hypotheses can be aggressive. 
               Enable if you really need it. *)
           | context [ match ?v with _ => _ end ] =>
-              printer d (fun () => sprintf "Grinder: Match on Hyp %I" name);
+              printer d (fun () => sprintf "Grinder: Match on Hyp %I" hid);
                 (* Warning: This can loop if dest_match doesn't eliminate the match. *)
               dest_match v; Control.enter (fun () => restart (Int.add d 1) aux)
               
           | ?x = ?y =>
-              printer d (fun () => sprintf "Grinder: Equality on Hyp %I" name);
+              printer d (fun () => sprintf "Grinder: Equality on Hyp %I" hid);
               (* Subst logic *)
               let substed := 
                 (* we wrap in a "plus" because subst can fail if recursive equality! *)
