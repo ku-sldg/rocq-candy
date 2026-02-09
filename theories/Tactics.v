@@ -14,10 +14,10 @@ Ltac2 Notation "sprintf" fmt(format) := sprintf fmt.
 
 Ltac2 dprint (debug : bool) :=
   let tab_char := Char.of_int 9 in
-  fun (tabs : int) (s : string) =>
-    if debug 
-    then (printf "%s%s" (String.make tabs tab_char) s) 
-    else ().
+  if debug 
+  then fun (tabs : int) (s : unit -> string) =>
+    (printf "%s%s" (String.make tabs tab_char) (s ()))
+  else fun _ _ => ().
 
 (* Helper to generate indentation string *)
 Ltac2 rec make_indent (n : int) : string :=
@@ -1609,22 +1609,22 @@ Ltac2 active_hyps () : ident list :=
    and pushes NEW hypotheses onto the stack.
    It runs until the stack is empty (Fixed Point).
 *)
-Ltac2 grinder (debug : bool) :=
+Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
   (* SUBST RUINS THE QUEUE. 
     Refill with ALL current hyps to be safe. *)
   let restart d g := 
     try (simple congruence 1);
-    dprint debug d "Grinder: Restarting with new queue";
+    printer d (fun () => "Grinder: Restarting with new queue");
     g d (active_hyps ()) 
   in
   let rec aux d q := 
-    dprint debug d (sprintf "Grinder: Queue Len: %i" (List.length q));
+    printer d (fun () => sprintf "Grinder: Queue Len: %i" (List.length q));
     match q with
     | [] => () (* Done *)
     | hid :: rest =>
       match safe_hyp hid with
       | None => 
-          dprint debug d (sprintf "Grinder: Hyp %I not found - Skipping." hid);
+          printer d (fun () => sprintf "Grinder: Hyp %I not found - Skipping." hid);
           aux d rest (* It's gone, skip *)
       | Some (name, _val, type) =>
         let hv := Control.hyp name in
@@ -1632,18 +1632,18 @@ Ltac2 grinder (debug : bool) :=
         if is_reflexive type then (
           (* we have to do "try" here because it may be
           used in other hypotheses *)
-          dprint debug d (sprintf "Grinder: Hyp %I is reflexive - Clearing." name);
+          printer d (fun () => sprintf "Grinder: Hyp %I is reflexive - Clearing." name);
           try (clear $name); 
           aux d rest
         ) 
         else if is_discr_equality type then (
-          dprint debug d (sprintf "Grinder: Hyp %I is discriminative equality - Exfalso." name);
+          printer d (fun () => sprintf "Grinder: Hyp %I is discriminative equality - Exfalso." name);
           exfalso; congruence
         )
         (* 3. Injectable Equality: S n = S m *)
         else if is_injectable_equality type then (
           (* Inject, get new IDs (n=m), and ADD them to the queue *)
-          dprint debug d (sprintf "Grinder: Hyp %I is injectable equality - Injecting and adding new hyps." name);
+          printer d (fun () => sprintf "Grinder: Hyp %I is injectable equality - Injecting and adding new hyps." name);
           try (inject_and_subst name; restart (Int.add d 1) aux)
         )
         else
@@ -1651,7 +1651,7 @@ Ltac2 grinder (debug : bool) :=
           lazy_match! type with
           | False => exfalso; assumption
           | _ /\ _ =>
-              dprint debug d (sprintf "Grinder: Conj on Hyp %I" name);
+              printer d (fun () => sprintf "Grinder: Conj on Hyp %I" name);
               (* Split and add children to queue *)
               let h1 := fresh_hyp "Hand_l" in
               let h2 := fresh_hyp "Hand_r" in
@@ -1659,7 +1659,7 @@ Ltac2 grinder (debug : bool) :=
               aux d (h1 :: h2 :: rest)
           
           | _ \/ _ =>
-              dprint debug d (sprintf "Grinder: Disj on Hyp %I" name);
+              printer d (fun () => sprintf "Grinder: Disj on Hyp %I" name);
               (* Branching! We must recurse in BOTH branches. *)
               let h1 := fresh_hyp "Hor_l" in
               let h2 := fresh_hyp "Hor_r" in
@@ -1668,7 +1668,7 @@ Ltac2 grinder (debug : bool) :=
               [ aux (Int.add d 1) (h1 :: rest) | aux (Int.add d 1) (h2 :: rest) ]
           
           | { _ } + { _ } =>
-              dprint debug d (sprintf "Grinder: Sumbool on Hyp %I" name);
+              printer d (fun () => sprintf "Grinder: Sumbool on Hyp %I" name);
               (* Branching! We must recurse in BOTH branches. *)
               let h1 := fresh_hyp "Hsumb_l" in
               let h2 := fresh_hyp "Hsumb_r" in
@@ -1677,7 +1677,7 @@ Ltac2 grinder (debug : bool) :=
               [ aux (Int.add d 1) (h1 :: rest) | aux (Int.add d 1) (h2 :: rest) ]
           
           | exists _, _ =>
-              dprint debug d (sprintf "Grinder: Exists on Hyp %I" name);
+              printer d (fun () => sprintf "Grinder: Exists on Hyp %I" name);
               let h_body := fresh_hyp "Hex" in
               destruct $hv as [? $h_body];
               aux d (h_body :: rest)
@@ -1686,12 +1686,12 @@ Ltac2 grinder (debug : bool) :=
               Only doing this on hypotheses can be aggressive. 
               Enable if you really need it. *)
           | context [ match ?v with _ => _ end ] =>
-              dprint debug d (sprintf "Grinder: Match on Hyp %I" name);
+              printer d (fun () => sprintf "Grinder: Match on Hyp %I" name);
                 (* Warning: This can loop if dest_match doesn't eliminate the match. *)
               dest_match v; Control.enter (fun () => restart (Int.add d 1) aux)
               
           | ?x = ?y =>
-              dprint debug d (sprintf "Grinder: Equality on Hyp %I" name);
+              printer d (fun () => sprintf "Grinder: Equality on Hyp %I" name);
               (* Subst logic *)
               let substed := 
                 (* we wrap in a "plus" because subst can fail if recursive equality! *)
@@ -1709,16 +1709,16 @@ Ltac2 grinder (debug : bool) :=
               in
               if substed 
               then Control.once (fun () => 
-                dprint debug d "Grinder: Substed - Restarting";
+                printer d (fun () => "Grinder: Substed - Restarting");
                 restart (Int.add d 1) aux
               ) 
               else Control.once (fun () => 
-                dprint debug d "Grinder: Did not subst";
+                printer d (fun () => "Grinder: Did not subst");
                 try (rewrite $hv in *); aux d rest
               )
                 
           | _ => 
-            dprint debug d "Grinder: No match";
+            printer d (fun () => "Grinder: No match");
             aux d rest
           end
       end
@@ -1730,12 +1730,12 @@ Ltac2 Notation saturate_context := grinder false.
 (* Entry point for cleaning context *)
 Ltac2 Notation dsaturate_context :=  grinder true.
 
-Ltac2 rescue debug try_solver d rec_F :=
-  dprint debug d "Crush: Rescue";
+Ltac2 rescue printer try_solver d rec_F :=
+  printer d (fun () => "Crush: Rescue");
 
   let progressed := Control.plus 
     (fun () => 
-        dprint debug d "Crush: Fall-through";
+        printer d (fun () => "Crush: Fall-through");
         progress (fun () => 
           try (try_solver ());
           cbn in *
@@ -1748,60 +1748,60 @@ Ltac2 rescue debug try_solver d rec_F :=
       rec_F (Int.add d 1)
   ) else (
       (* Both failed. This is a hard failure. *)
-      dprint debug d "Crush: Rescue Failure - No progress with cbn!"
+      printer d (fun () => "Crush: Rescue Failure - No progress with cbn!")
   ).
 
 (* --- THE UNIFIED LOOP --- *)
 Ltac2 crush1 
-    (debug : bool)
+    (printer : int -> (unit -> string) -> unit)
     (* (inter_solver : unit -> unit)  *)
     (rec_F : int -> unit)
     (d : int)
     (rescue : int -> (int -> unit) -> unit) :=
-  dprint debug d "Crush: Saturating Context";
-  (grinder debug);
+  printer d (fun () => "Crush: Saturating Context");
+  (grinder printer);
   Control.enter (fun () => 
-    dprint debug d "Crush: Analyzing Goal";
+    printer d (fun () => "Crush: Analyzing Goal");
     lazy_match! goal with
     | [ |- ~ _ ] =>
-        dprint debug d "Crush: Negation";
+        printer d (fun () => "Crush: Negation");
         let hc := fresh_hyp "HC" in
         intro $hc; rec_F d
 
     | [ |- _ <-> _ ] => 
-        dprint debug d "Crush: Iff";
+        printer d (fun () => "Crush: Iff");
         split > [ 
           Control.once (fun () =>
-            dprint debug d "Crush: Iff Left"; rec_F (Int.add d 1))
+            printer d (fun () => "Crush: Iff Left"); rec_F (Int.add d 1))
           | 
           Control.once (fun () =>
-            (dprint debug d "Crush: Iff Right"; rec_F (Int.add d 1))
+            (printer d (fun () => "Crush: Iff Right"); rec_F (Int.add d 1))
           )
         ]
 
     | [ |- _ /\ _ ] => 
-        dprint debug d "Crush: And";
+        printer d (fun () => "Crush: And");
         split > [ 
           Control.once (fun () =>
-            dprint debug d "Crush: And Left"; rec_F (Int.add d 1))
+            printer d (fun () => "Crush: And Left"); rec_F (Int.add d 1))
           | 
           Control.once (fun () =>
-            (dprint debug d "Crush: And Right"; rec_F (Int.add d 1))
+            (printer d (fun () => "Crush: And Right"); rec_F (Int.add d 1))
           )
         ]
         
     | [ |- forall _, _ ] => 
-      dprint debug d "Crush: Forall";
+      printer d (fun () => "Crush: Forall");
       let v := get_forall_var_name (Control.goal ()) in
       let x := fresh_hyp (Ident.to_string v) in
       intros $x; rec_F d
 
     | [ |- context [ match ?t with _ => _ end ] ] =>
-        dprint debug d "Crush: Match in Goal";
+        printer d (fun () => "Crush: Match in Goal");
         let goal_num := Ref.ref 1 in
         dest_match t; 
         Control.enter (fun () => 
-          dprint debug d (sprintf "Crush: Match in Goal Branch %i" (Ref.get goal_num));
+          printer d (fun () => sprintf "Crush: Match in Goal Branch %i" (Ref.get goal_num));
           Ref.incr goal_num;
           rec_F (Int.add d 1)
         )
@@ -1812,14 +1812,14 @@ Ltac2 crush1
     a match in a hypothesis that needs to be broken down before we can make progress.
     *)
     | [ _h : context [ match ?_t with _ => _ end ] |- _ ] =>
-        dprint debug d "Crush: Match in Hypothesis";
+        printer d (fun () => "Crush: Match in Hypothesis");
         (* don't increase depth here, 
         since we aren't making "real" progress on the goal, just rearranging context 
         *)
         try (
           progress (fun () =>
             cbn in *;
-            grinder debug
+            grinder printer
           );
           Control.enter (fun () => rec_F d)
         )
@@ -1834,44 +1834,44 @@ Ltac2 crush1
       "it is best to PICK a branch/variable as late as possible"
     *)
     | [ |- { _ } + { _ } ] => 
-        dprint debug d "Crush: Sumbool";
+        printer d (fun () => "Crush: Sumbool");
         try (
           solve [ 
-            dprint debug d "Crush: Sumbool Left";
+            printer d (fun () => "Crush: Sumbool Left");
             left; rec_F (Int.add d 1)
           ]
         );
         try (
           solve [ 
-            dprint debug d "Crush: Sumbool Right";
+            printer d (fun () => "Crush: Sumbool Right");
             right; rec_F (Int.add d 1) 
           ]
         );
-        dprint debug d "Crush: Sumbool Failed!";
+        printer d (fun () => "Crush: Sumbool Failed!");
         rescue d rec_F
     
     | [ |- _ \/ _ ] => 
-        dprint debug d "Crush: Or";
+        printer d (fun () => "Crush: Or");
         try (
           solve [ 
-            dprint debug d "Crush: Or Left";
+            printer d (fun () => "Crush: Or Left");
             left; rec_F (Int.add d 1) 
           ]
         );
         try (
           solve [ 
-            dprint debug d "Crush: Or Right";
+            printer d (fun () => "Crush: Or Right");
             right; rec_F (Int.add d 1) 
           ]
         );
-        dprint debug d "Crush: Or Failed!";
+        printer d (fun () => "Crush: Or Failed!");
         rescue d rec_F
         
     | [ |- exists _, _ ] => 
-      dprint debug d "Crush: Exists";
+      printer d (fun () => "Crush: Exists");
       (* only lock in existentials if solving *)
       try (eexists; solve [ rec_F (Int.add d 1) ]);
-      dprint debug d "Crush: Exists Failed!";
+      printer d (fun () => "Crush: Exists Failed!");
       rescue d rec_F
 
     (* --------------------------------------------------------- *)
@@ -1879,7 +1879,7 @@ Ltac2 crush1
     (* --------------------------------------------------------- *)
     | [ |- _ ] => 
       (* only option: hope for rescue!!! *)
-      dprint debug d "Crush: Fall-through Case";
+      printer d (fun () => "Crush: Fall-through Case");
       rescue d rec_F
     end
   ).
@@ -1887,12 +1887,13 @@ Ltac2 crush1
 Ltac2 crush (debug : bool) (loop : bool) tacs :=
   let res_tac () := eauto in
   let inter_tac := tac_list_thunk res_tac tacs in
+  let printer := dprint debug in
   if loop then (
     try (inter_tac ());
-    let rec aux d := crush1 debug aux d (rescue debug inter_tac) in
+    let rec aux d := crush1 printer aux d (rescue printer inter_tac) in
     Control.enter (fun () => aux 0)
   ) else (
-    crush1 debug (fun _ => ()) 0 (rescue debug inter_tac)
+    crush1 printer (fun _ => ()) 0 (rescue printer inter_tac)
   ).
 
 Ltac2 Notation "ff0" 
