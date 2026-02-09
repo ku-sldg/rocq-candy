@@ -1629,8 +1629,7 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
           (* we have to do "try" here because it may be
           used in other hypotheses *)
           printer d (fun () => sprintf "Grinder: Hyp %I is reflexive - Clearing." hid);
-          try (clear $hid); 
-          aux d rest
+          clear $hid; aux d rest
         ) 
         else if is_discr_equality type then (
           printer d (fun () => sprintf "Grinder: Hyp %I is discriminative equality - Exfalso." hid);
