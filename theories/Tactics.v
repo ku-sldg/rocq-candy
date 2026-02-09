@@ -1609,16 +1609,16 @@ Ltac2 active_hyps () : ident list :=
    and pushes NEW hypotheses onto the stack.
    It runs until the stack is empty (Fixed Point).
 *)
-Ltac2 grinder (debug : bool) (queue : ident list) :=
+Ltac2 grinder (debug : bool) :=
   (* SUBST RUINS THE QUEUE. 
     Refill with ALL current hyps to be safe. *)
   let restart d g := 
+    try (simple congruence 1);
     dprint debug d "Grinder: Restarting with new queue";
     g d (active_hyps ()) 
   in
   let rec aux d q := 
     dprint debug d (sprintf "Grinder: Queue Len: %i" (List.length q));
-    try (simple congruence 1);
     match q with
     | [] => () (* Done *)
     | hid :: rest =>
@@ -1724,14 +1724,11 @@ Ltac2 grinder (debug : bool) (queue : ident list) :=
       end
     end
   in
-  aux 0 queue.
+  restart 0 aux; Control.enter (fun () => try (simple congruence 1)).
 
+Ltac2 Notation saturate_context := grinder false.
 (* Entry point for cleaning context *)
-Ltac2 saturate_context0 dbg := grinder dbg (active_hyps ()).
-
-Ltac2 Notation saturate_context := saturate_context0 false.
-(* Entry point for cleaning context *)
-Ltac2 Notation dsaturate_context :=  saturate_context0 true.
+Ltac2 Notation dsaturate_context :=  grinder true.
 
 Ltac2 rescue debug leaf_solver inter_solver d rec_F :=
   dprint debug d "Crush: Rescue";
@@ -1763,7 +1760,7 @@ Ltac2 crush1
     (d : int)
     (rescue : int -> (int -> unit) -> unit) :=
   dprint debug d "Crush: Saturating Context";
-  (saturate_context0 debug);
+  (grinder debug);
   Control.enter (fun () => 
     dprint debug d "Crush: Analyzing Goal";
     lazy_match! goal with
@@ -1823,7 +1820,7 @@ Ltac2 crush1
         try (
           progress (fun () =>
             cbn in *;
-            saturate_context0 debug
+            grinder debug
           );
           Control.enter (fun () => rec_F d)
         )
