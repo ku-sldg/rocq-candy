@@ -7,6 +7,95 @@ Import ListNotations.
 From Ltac2 Require Export Ltac2 Printf Pstring Notations.
 From Ltac2 Require Export Bool Lazy Array Lazy FMap Fresh Control Ltac1 Constr.
 
+(* Helper to generate indentation string *)
+Ltac2 rec make_indent (n : int) : string :=
+  if Int.equal n 0 then "" 
+  else String.concat "" ["  "; make_indent (Int.sub n 1)].
+
+Ltac2 rec print_unsafe_aux (indent : int) (t : constr) : unit :=
+  let ind := make_indent indent in
+  
+  match Constr.Unsafe.kind t with
+  | Constr.Unsafe.Rel n => 
+      printf "%s(Rel %i)" ind n
+
+  | Constr.Unsafe.Var id => 
+      printf "%s(Var %I)" ind id
+
+  | Constr.Unsafe.Meta _ => 
+      (* Ignoring the variable part as requested *)
+      printf "%s(Meta)" ind
+
+  | Constr.Unsafe.Evar _ args => 
+      (* Ignoring the EvarKey, just showing it has children *)
+      printf "%s(Evar" ind;
+      Array.iter (print_unsafe_aux (Int.add indent 1)) args;
+      printf "%s)" ind
+
+  | Constr.Unsafe.Sort _ => 
+      printf "%s(Sort)" ind
+
+  | Constr.Unsafe.Cast c _ ty => 
+      printf "%s(Cast" ind;
+      print_unsafe_aux (Int.add indent 1) c;
+      print_unsafe_aux (Int.add indent 1) ty;
+      printf "%s)" ind
+
+  | Constr.Unsafe.Prod b body => 
+      let name := match Constr.Binder.name b with 
+                  | Some i => Ident.to_string i 
+                  | None => "_" 
+                  end in
+      (* Construct the header string to ensure it prints on one line *)
+      printf "%s(Prod %s :" ind name;
+      print_unsafe_aux (Int.add indent 1) (Constr.Binder.type b);
+      print_unsafe_aux (Int.add indent 1) body;
+      printf "%s)" ind
+
+  | Constr.Unsafe.Lambda b body => 
+      let name := match Constr.Binder.name b with 
+                  | Some i => Ident.to_string i 
+                  | None => "_" 
+                  end in
+      printf "%s(Lambda %s :" ind name;
+      print_unsafe_aux (Int.add indent 1) (Constr.Binder.type b);
+      print_unsafe_aux (Int.add indent 1) body;
+      printf "%s)" ind
+
+  | Constr.Unsafe.LetIn b val body => 
+      let name := match Constr.Binder.name b with 
+                  | Some i => Ident.to_string i 
+                  | None => "_" 
+                  end in
+      printf "%s(LetIn %s :=" ind name;
+      print_unsafe_aux (Int.add indent 1) val;
+      print_unsafe_aux (Int.add indent 1) (Constr.Binder.type b);
+      print_unsafe_aux (Int.add indent 1) body;
+      printf "%s)" ind
+
+  | Constr.Unsafe.App f args => 
+      printf "%s(App" ind;
+      print_unsafe_aux (Int.add indent 1) f;
+      Array.iter (print_unsafe_aux (Int.add indent 1)) args;
+      printf "%s)" ind
+
+  | Constr.Unsafe.Constant _ _ => 
+      (* Printing 't' here uses the pretty printer for the name (e.g. Nat.add) *)
+      printf "%s(Constant %t)" ind t
+
+  | Constr.Unsafe.Ind _ _ => 
+      printf "%s(Ind %t)" ind t
+
+  | Constr.Unsafe.Constructor _ _ => 
+      printf "%s(Constructor %t)" ind t
+      
+  | _ => 
+      printf "%s(Other)" ind
+  end.
+
+Ltac2 print_unsafe (t : constr) : unit :=
+  print_unsafe_aux 0 t.
+
 (* Compatability/Notational Layer *)
 Ltac2 Notation "ref" x(preterm) :=
   ltac1:(x |- refine x) (Ltac1.of_preterm x).
@@ -1236,10 +1325,6 @@ Ltac2 Notation "find_contra" :=
 Ltac2 Notation find_contra := find_contra.
 
 
-Require Import Ltac2.Ltac2.
-Require Import Ltac2.Control.
-Require Import Ltac2.Printf.
-
 (* --- UTILITIES --- *)
 
 (* Safely get a hypothesis, returning None if it was cleared/substed *)
@@ -1293,61 +1378,160 @@ Ltac2 inject_and_subst (h : ident) : unit :=
 (* The destruct_match tactic. 
    Optimized to avoid blind rewriting.
 *)
-Ltac2 dest_match (t : constr) : unit :=
-  (* 1. Determine if we want an equation. *)
-  let want_eqn := 
-    match Constr.Unsafe.kind t with
-    | Constr.Unsafe.Var _ => 
-        lazy_match! (Constr.type t) with
-        | bool => false
-        | sumbool _ _ => false
-        | _ => true
-        end
-    | _ => 
-        (* It is a complex term (Application, Cast, etc.).
-           We ALWAYS want an equation for these (e.g. f x).
-           We skip checking the type entirely to save time. *)
-        true
+
+Ltac2 rec get_head (t : constr) : constr :=
+  match Constr.Unsafe.kind t with
+  | Constr.Unsafe.App f _ => get_head f
+  | Constr.Unsafe.Cast c _ _ => get_head c
+  | _ => t
+  end.
+
+Example test_get_head : forall (A B : Type) (f : A -> A -> B) (x y : A), 
+  True.
+Proof.
+  intros A B f x y.
+  
+  (* Define the check logic locally *)
+  let check (t : constr) (expected : constr) (msg : string) :=
+    let res := get_head t in
+    if Constr.equal res expected then () 
+    else Control.throw (Tactic_failure (Some (Message.of_string msg)))
+  in
+  let f := 'f in
+  let x := 'x in
+  
+  (* Test 1: Simple application (f x) -> f *)
+  check '(f x) f "Failed to get head of (f x)";
+  (* Test 2: Nested application (f x y) -> f *)
+  check '(f x y) f "Failed to get head of (f x y)";
+  (* Test 3: Casted term ((f x) : B) -> f *)
+  check '((f x y) : B) f "Failed to get head of cast";
+  (* Test 4: Raw variable x -> x *)
+  check x x "Failed to get head of var".
+
+  exact I.
+Qed.
+
+Ltac2 rec get_codomain (t : constr) : constr :=
+  match Constr.Unsafe.kind t with
+  | Constr.Unsafe.Prod _ body => get_codomain body
+  | _ => t
+  end.
+
+Example test_get_codomain : forall (A : Type), 
+  (A -> bool) -> 
+  (forall (x:A), sumbool True True) -> 
+  (forall (x:A), {x = x} + {x <> x}) -> 
+  True.
+Proof.
+  intros A f_bool f_sum f_sum2.
+
+  let check_is_bool (t : constr) :=
+    let res := get_codomain t in
+    match! res with
+    | bool => ()
+    | _ => Control.throw (Tactic_failure (Some (Message.of_string "Expected bool")))
     end
   in
+  let check_is_sumbool (t : constr) :=
+    let res := get_codomain t in
+    match! res with
+    | sumbool _ _ => ()
+    | _ => Control.throw (Tactic_failure (Some (Message.of_string "Expected sumbool")))
+    end
+  in
+  (* Test 1: Simple Type (bool) *)
+  check_is_bool 'bool;
 
-  (* 2. Destruct accordingly *)
+  (* Test 2: Arrow Type (A -> bool) *)
+  check_is_bool (Constr.type 'f_bool);
+
+  (* Test 3: Dependent Product (forall x, sumbool ...) *)
+  check_is_sumbool (Constr.type 'f_sum);
+
+  (* Test 4: Sumbool with forall (forall x, sumbool ...) *)
+  check_is_sumbool (Constr.type 'f_sum2).
+
+  exact I.
+Qed.
+
+(* 3. Main Tactic *)
+Ltac2 dest_match (t : constr) : unit :=
+  (* Optimization: Only type-check the HEAD, never the application. *)
+  let head := get_head t in
+  let head_type := Constr.type head in (* Fast: O(1) lookup for Var/Const *)
+  let codomain := get_codomain head_type in
+  let cod_head := get_head codomain in
+  
+  let want_eqn := 
+    if Constr.equal cod_head 'sumbool then false (* Always skip equation for sumbool *)
+    else if Constr.equal cod_head 'bool then 
+      (* Skip equation ONLY if 't' is a raw variable. 
+         If 't' is 'f x', we want 'Heq : f x = true'. *)
+      match Constr.Unsafe.kind t with
+      | Constr.Unsafe.Var _ => false
+      | _ => true
+      end
+    else true (* Default: Generate equation *)
+  in
+
   if want_eqn then
-    let h_eq := fresh_hyp "Heq" in 
+    let h_eq := fresh_hyp "Heq" in
     destruct $t eqn:$h_eq
   else destruct $t.
 
-  (* match! Constr.type t with
-  | bool => 
-      (* For bools, we don't generate an equality since it's not useful. *)
-      destruct $t
-  | sumbool _ _  =>
-      (* For sumbool, we also don't generate an equality since it's not useful. *)
-      destruct $t
-  | _ =>
-    let h_eq := fresh_hyp "Heq" in
-    (* dest_match logic: destruct and handle the equality *)
-    destruct $t eqn:$h_eq
-  end. *)
-  (*
-  ;
-  Control.enter (fun () =>
-    (* In each branch, try to subst if it's a var, or rewrite if it's a term *)
-    try (
-        let heq_hyp := Control.hyp h_eq in
-        match Constr.Unsafe.kind t with
-        | Constr.Unsafe.Var tid => 
-          (* subst the variable *)
-          Std.subst [tid]
-        | _ => 
-          Std.subst [h_eq];
-          (* It is a term equality, e.g., (f x) = true. 
-              Rewrite it in the goal and hyps to simplify context. *)
-          rewrite $heq_hyp in *
-        end
-    )
-  ).
-  *)
+Example test_dest_match_comprehensive : 
+  forall (n : nat) (b : bool) (s : {1=1} + {1=2}),
+  Nat.eqb n 0 = true -> (* Boolean application *)
+  (if Compare_dec.zerop n then 1 else 0) = 0 -> (* Sumbool application *)
+  True.
+Proof.
+  intros n b s Hbool Hsum.
+
+  (* Define assertion logic locally to keep environment clean *)
+  let assert_heq (should_exist : bool) := 
+    let hyps := Control.hyps () in
+    let found := List.exist (fun (id, _, _) => Ident.equal id @Heq) hyps in
+    if Bool.equal found should_exist then ()
+    else 
+      let msg := if should_exist then "Expected Heq, found none" else "Found Heq, expected none" in
+      Control.throw (Tactic_failure (Some (Message.of_string msg)))
+  in
+
+  (* 1. Standard Inductive (nat) -> Expect Heq *)
+  dest_match 'n > [ 
+    assert_heq true
+    | assert_heq true; apply I 
+  ]; 
+  clear n Heq;
+  (* 2. Boolean Variable -> Expect NO Heq *)
+  dest_match 'b > [
+    assert_heq false
+    | assert_heq false; apply I 
+  ];
+  clear b;
+  (* 3. Sumbool Variable -> Expect NO Heq *)
+  dest_match 's > [
+    assert_heq false
+  | assert_heq false; apply I
+  ];
+  clear s;
+  (* 4. Boolean Application (Nat.eqb) -> Expect Heq *)
+  (* This proves the "is_complex" check works *)
+  dest_match '(Nat.eqb 0 0) > [
+    assert_heq true
+  | assert_heq true; apply I 
+  ];
+  clear Hbool Heq;
+  (* 5. Sumbool Application (Compare_dec.zerop) -> Expect NO Heq *)
+  (* This proves the "codomain" check works *)
+  dest_match '(Compare_dec.zerop 0) > [
+    assert_heq false
+  | assert_heq false; apply I 
+  ].
+  
+  apply I.
+Qed.
 
 Example dest_match_works : forall (x : nat) (l : list nat) (b : bool) 
   (p : { 1 = 1 } + { 1 = 2 }),
