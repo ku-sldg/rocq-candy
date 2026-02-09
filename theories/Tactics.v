@@ -1726,9 +1726,13 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
   in
   restart 0 aux; Control.enter (fun () => try (simple congruence 1)).
 
-Ltac2 Notation saturate_context := grinder false.
+Ltac2 saturate_context0 (debug : bool) :=
+  let printer := dprint debug in
+  grinder printer.
+
+Ltac2 Notation saturate_context := saturate_context0 false.
 (* Entry point for cleaning context *)
-Ltac2 Notation dsaturate_context :=  grinder true.
+Ltac2 Notation dsaturate_context := saturate_context0 true.
 
 Ltac2 rescue printer try_solver d rec_F :=
   printer d (fun () => "Crush: Rescue");
