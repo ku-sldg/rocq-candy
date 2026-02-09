@@ -1455,31 +1455,18 @@ Proof.
   exact I.
 Qed.
 
-(* 3. Main Tactic *)
 Ltac2 dest_match (t : constr) : unit :=
-  (* Optimization: Only type-check the HEAD, never the application. *)
-  let head := get_head t in
-  let head_type := Constr.type head in (* Fast: O(1) lookup for Var/Const *)
-  let codomain := get_codomain head_type in
-  
-  let want_eqn := 
-    match! codomain with
-    | sumbool _ _ => false (* Always skip equation for sumbool *)
-    | bool => 
-      (* Skip equation ONLY if 't' is a raw variable. 
-         If 't' is 'f x', we want 'Heq : f x = true'. *)
-      match Constr.Unsafe.kind t with
-      | Constr.Unsafe.Var _ => false
-      | _ => true
-      end
-    | _ => true (* Default: Generate equation *)
+  let no_eqn := 
+    match! Constr.type t with
+    | sumbool _ _ => true
+    | bool => Constr.is_var t
+    | _ => false
     end
   in
-
-  if want_eqn then
-    let h_eq := fresh_hyp "Heq" in
-    destruct $t eqn:$h_eq
-  else destruct $t.
+  if no_eqn then destruct $t
+  else 
+    let heq := fresh_hyp "Heq" in
+    destruct $t eqn:$heq.
 
 Example test_dest_match_comprehensive : 
   forall (n : nat) (b : bool) (s : {1=1} + {1=2}),
