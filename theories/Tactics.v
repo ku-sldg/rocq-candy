@@ -1669,19 +1669,23 @@ Ltac2 grinder (queue : ident list) :=
               
           | ?x = ?y =>
               (* Subst logic *)
-              match Constr.Unsafe.kind x with
-              | Constr.Unsafe.Var xid => 
-                Std.subst [xid]; restart aux
-              | _ => 
-                match Constr.Unsafe.kind y with
-                | Constr.Unsafe.Var yid => 
-                  Std.subst [yid]; restart aux
-                | _ => 
-                  (* neither remain, try rewrite *)
-                  try (erewrite $hv in *); 
-                  aux rest
-                end
-              end
+              let substed := 
+                (* we wrap in a "plus" because subst can fail if recursive equality! *)
+                Control.plus (fun () => 
+                  match Constr.Unsafe.kind x with
+                  | Constr.Unsafe.Var xid => Std.subst [xid]; true
+                  | _ => 
+                    match Constr.Unsafe.kind y with
+                    | Constr.Unsafe.Var yid => Std.subst [yid]; true
+                    | _ => false
+                    end
+                  end
+                )
+                (fun _ => false)
+              in
+              if substed 
+              then Control.once (fun () => restart aux) 
+              else Control.once (fun () => try (rewrite $hv in *); aux rest)
                 
           | _ => aux rest
           end
