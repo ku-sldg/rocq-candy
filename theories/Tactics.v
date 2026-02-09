@@ -1616,7 +1616,7 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
   let rec aux d q := 
     printer d (fun () => sprintf "Grinder: Queue Len: %i" (List.length q));
     match q with
-    | [] => () (* Done *)
+    | [] => try (simple congruence 1)
     | hid :: rest =>
       match safe_hyp hid with
       | None => 
@@ -1719,7 +1719,7 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
       end
     end
   in
-  restart 0 aux; Control.enter (fun () => try (simple congruence 1)).
+  restart 0 aux.
 
 Ltac2 saturate_context0 (debug : bool) :=
   let printer := dprint debug in
