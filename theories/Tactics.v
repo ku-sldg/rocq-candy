@@ -1588,11 +1588,11 @@ Qed.
 Ltac2 is_inert (c : constr) : bool :=
   match Constr.Unsafe.kind c with
   | Constr.Unsafe.Var _ => true  (* n : nat *)
+  | Constr.Unsafe.Constant _ _ => true  (* n : nat *)
   | Constr.Unsafe.Sort _ => true (* A : Type *)
-  | Constr.Unsafe.Prod _ _ => true (* H : A -> B (Keep these for the solver, don't grind) *)
-  | Constr.Unsafe.Ind _ _ => 
+  (* | Constr.Unsafe.Ind _ _ => 
        (* Check for False! False is an Inductive, but it is NOT inert. *)
-       if Constr.equal c '(False) then false else true 
+       if Constr.equal c '(False) then false else true  *)
   | _ => false
   end.
 

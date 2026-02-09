@@ -130,7 +130,7 @@ Module Nat_Stringification.
   Proof.
     induction n; intros; ff with lia.
     - eapply lt_sprop_impl_nat_lts in HN as HN'; simpl in *; box_simpl.
-      destruct n0; ff; box_simpl.
+    - eapply lt_sprop_impl_nat_lts in HN as HN'; simpl in *; box_simpl.
   Qed.
   Opaque nat_lt_10_to_ascii nat_lt_10_from_ascii.
 
