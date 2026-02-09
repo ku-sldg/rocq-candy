@@ -1688,29 +1688,27 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
           | ?x = ?y =>
               printer d (fun () => sprintf "Grinder: Equality on Hyp %I" hid);
               (* Subst logic *)
-              let substed := 
-                (* we wrap in a "plus" because subst can fail if recursive equality! *)
-                Control.plus (fun () => 
-                  match Constr.Unsafe.kind x with
-                  | Constr.Unsafe.Var xid => Std.subst [xid]; true
-                  | _ => 
-                    match Constr.Unsafe.kind y with
-                    | Constr.Unsafe.Var yid => Std.subst [yid]; true
-                    | _ => false
-                    end
-                  end
-                )
-                (fun _ => false)
-              in
-              if substed 
-              then Control.once (fun () => 
-                printer d (fun () => "Grinder: Substed - Restarting");
-                restart (Int.add d 1) aux
-              ) 
-              else Control.once (fun () => 
+              let continue () :=
                 printer d (fun () => "Grinder: Did not subst");
                 try (rewrite $hv in *); aux d rest
+              in
+              let restart_after_subst () := 
+                printer d (fun () => "Grinder: Substbed - Restarting");
+                restart (Int.add d 1) aux
+              in
+              Control.once_plus (fun () => 
+                match Constr.Unsafe.kind x with
+                | Constr.Unsafe.Var xid => 
+                  Std.subst [xid]; restart_after_subst ()
+                | _ => 
+                  match Constr.Unsafe.kind y with
+                  | Constr.Unsafe.Var yid => 
+                    Std.subst [yid]; restart_after_subst ()
+                  | _ => continue ()
+                  end
+                end
               )
+              (fun _ => continue ())
                 
           | _ => 
             printer d (fun () => "Grinder: No match");
