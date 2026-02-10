@@ -1763,9 +1763,16 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
           | ?x = ?y =>
               printer d (fun () => sprintf "Grinder: Equality on Hyp %I" hid);
               (* Subst logic *)
-              let continue () :=
+              let continue include_self :=
                 printer d (fun () => "Grinder: Did not subst");
-                try (rewrite $hv in *); aux d rest
+                try (rewrite $hv in *); 
+                aux d (if include_self then hid :: rest else rest)
+              in
+              let unfold_everywhere cid :=
+                Std.unfold [(Std.ConstRef cid, Std.AllOccurrences)] {
+                  Std.on_hyps := None;          (* Select all hypotheses *)
+                  Std.on_concl := Std.AllOccurrences
+                }
               in
               let restart_after_subst () := 
                 printer d (fun () => "Grinder: Subst-ed - Restarting");
@@ -1775,15 +1782,19 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
                 match Constr.Unsafe.kind x with
                 | Constr.Unsafe.Var xid => 
                   Std.subst [xid]; restart_after_subst ()
+                | Constr.Unsafe.Constant cid _ => 
+                  unfold_everywhere cid; continue true
                 | _ => 
                   match Constr.Unsafe.kind y with
                   | Constr.Unsafe.Var yid => 
                     Std.subst [yid]; restart_after_subst ()
-                  | _ => continue ()
+                  | Constr.Unsafe.Constant cid _ => 
+                    unfold_everywhere cid; continue true
+                  | _ => continue false
                   end
                 end
               )
-              (fun _ => continue ())
+              (fun _ => continue false)
                 
           | _ => 
             printer d (fun () => "Grinder: No match");
