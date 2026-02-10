@@ -1685,7 +1685,7 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
         if is_reflexive type then (
           (* we have to do "try" here because it may be
           used in other hypotheses *)
-          printer d (fun () => sprintf "Grinder: Hyp %I is reflexive - Clearing." hid);
+          printer d (fun () => sprintf "Grinder: Hyp %I : %t is reflexive - Clearing." hid type);
           clear $hid; aux d rest
         ) 
         else if is_discr_equality type then (
@@ -1695,7 +1695,7 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
         (* 3. Injectable Equality: S n = S m *)
         else if is_injectable_equality type then (
           (* Inject, get new IDs (n=m), and ADD them to the queue *)
-          printer d (fun () => sprintf "Grinder: Hyp %I is injectable equality - Injecting and adding new hyps." hid);
+          printer d (fun () => sprintf "Grinder: Hyp %I : %t is injectable equality - Injecting and adding new hyps." hid type);
           try (inject_and_subst hid; restart (Int.add d 1) aux)
         )
         else
@@ -1758,7 +1758,7 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
                 try (rewrite $hv in *); aux d rest
               in
               let restart_after_subst () := 
-                printer d (fun () => "Grinder: Substbed - Restarting");
+                printer d (fun () => "Grinder: Subst-ed - Restarting");
                 restart (Int.add d 1) aux
               in
               Control.once_plus (fun () => 
