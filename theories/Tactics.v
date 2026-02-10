@@ -1515,7 +1515,7 @@ Ltac2 dest_match (t : constr) : unit :=
     let heq := fresh_hyp "Heq" in
     destruct $t eqn:$heq.
 
-Ltac2 dest_match_cont (t : constr) (cont : int -> ident option -> unit) : unit :=
+Ltac2 dest_match_cont (t : constr) : (int * (ident option)) option :=
   let no_eqn := 
     match! Constr.type t with
     | sumbool _ _ => true
@@ -1524,14 +1524,15 @@ Ltac2 dest_match_cont (t : constr) (cont : int -> ident option -> unit) : unit :
     end
   in
   (* NOTE: Here w eknow no_eqn -> 2 cases! *)
-  if no_eqn then destruct $t > [ cont 0 None | cont 1 None ]
+  if no_eqn then 
+    Control.once_plus (fun () => 
+        destruct $t; Some (2, None)
+      ) (fun _ => None)
   else 
     let heq := fresh_hyp "Heq" in
-    let goal_num := Ref.ref 1 in
-    destruct $t eqn:$heq; Control.enter (fun () => 
-      cont (Ref.get goal_num) (Some heq);
-      Ref.incr goal_num
-    ).
+    Control.once_plus (fun () => 
+        destruct $t eqn:$heq; Some (Control.numgoals (), Some heq)
+    ) (fun _ => None).
 
 Example test_dest_match_comprehensive : 
   forall (n : nat) (b : bool) (s : {1=1} + {1=2}),
@@ -1740,15 +1741,24 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
           | context [ match ?v with _ => _ end ] =>
               printer d (fun () => sprintf "Grinder: Match on Hyp %I" hid);
                 (* Warning: This can loop if dest_match doesn't eliminate the match. *)
-              dest_match_cont v (fun i idopt =>
-                printer d (fun () => sprintf "Grinder: Match Branch %i on Hyp %I" i hid);
-                match idopt with
-                | None => aux (Int.add d 1) (hid :: rest)
-                | Some eqn_id => 
-                    (* We know the match is gone, so we can keep grinding this hyp if we want! *)
-                    aux (Int.add d 1) (eqn_id :: hid :: rest)
-                end
-                )
+              match dest_match_cont v with
+              | None => (* We failed, just continue *)
+                  printer d (fun () => sprintf "Grinder: Failed to dest_match on Hyp %I" hid);
+                  aux d rest
+              | Some (num_branches, idopt) => 
+                let disp_list := List.init num_branches (fun i => 
+                    fun () =>
+                    printer d (fun () => sprintf "Grinder: Match Branch %i on Hyp %I" i hid);
+                    match idopt with
+                    | None => aux (Int.add d 1) (hid :: rest)
+                    | Some eqn_id => 
+                        (* We know the match is gone, so we can keep grinding this hyp if we want! *)
+                        aux (Int.add d 1) (eqn_id :: hid :: rest)
+                    end
+                    )
+                in
+                Control.dispatch disp_list
+              end
               
           | ?x = ?y =>
               printer d (fun () => sprintf "Grinder: Equality on Hyp %I" hid);
@@ -1782,7 +1792,7 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
       end
     end
   in
-  restart 0 aux.
+  cbn in *; restart 0 aux.
 
 Ltac2 saturate_context0 (debug : bool) :=
   let printer := dprint debug in
@@ -1816,7 +1826,6 @@ Ltac2 rescue printer try_solver d rec_F :=
 (* --- THE UNIFIED LOOP --- *)
 Ltac2 crush1 
     (printer : int -> (unit -> string) -> unit)
-    (* (inter_solver : unit -> unit)  *)
     (rec_F : int -> unit)
     (d : int)
     (rescue : int -> (int -> unit) -> unit) :=
@@ -1860,10 +1869,19 @@ Ltac2 crush1
 
     | [ |- context [ match ?t with _ => _ end ] ] =>
         printer d (fun () => "Crush: Match in Goal");
-        dest_match_cont t (fun i _id_opt => 
-          printer d (fun () => sprintf "Crush: Match in Goal Branch %i" i);
-          rec_F (Int.add d 1)
-        )
+        match dest_match_cont t with
+        | None => 
+            printer d (fun () => "Crush: Failed to dest_match on Goal");
+            ()
+        | Some (num_branches, _eqn_id_opt) =>
+          let disp_list := List.init num_branches (fun i => 
+              fun () =>
+              printer d (fun () => sprintf "Crush: Match in Goal Branch %i" i);
+              rec_F (Int.add d 1)
+              )
+          in
+          Control.dispatch disp_list
+        end
 
     (* 
     I don't like this case a lot: it should typically be 
@@ -1876,10 +1894,7 @@ Ltac2 crush1
         since we aren't making "real" progress on the goal, just rearranging context 
         *)
         try (
-          progress (fun () =>
-            cbn in *;
-            grinder printer
-          );
+          progress (fun () => grinder printer);
           Control.enter (fun () => rec_F d)
         )
 

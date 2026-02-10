@@ -53,8 +53,6 @@ Lemma result_map_spec : forall {X Y Z : Type} (l : list X) (f : X -> Result Y Z)
 Proof.
   induction l; ff with u;
   find_eapply_lem_hyp IHl; ff.
-  Unshelve.
-  ff.
 Qed.
 
 Fixpoint result_fold {A B E : Type} (f : A -> B -> Result B E) 
