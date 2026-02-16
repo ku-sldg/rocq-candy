@@ -1729,6 +1729,15 @@ Ltac2 grinder (printer : int -> (unit -> string) -> unit) :=
               destruct $hv as [$h1 | $h2] > 
               [ aux (Int.add d 1) (h1 :: rest) | aux (Int.add d 1) (h2 :: rest) ]
           
+          | _ + { _ } =>
+              printer d (fun () => sprintf "Grinder: Sumor on Hyp %I" hid);
+              (* Branching! We must recurse in BOTH branches. *)
+              let h1 := fresh_hyp "Hsumor_l" in
+              let h2 := fresh_hyp "Hsumor_r" in
+              (* logic: destruct, then in each branch, continue grinding with the specific new hyp *)
+              destruct $hv as [$h1 | $h2] > 
+              [ aux (Int.add d 1) (h1 :: rest) | aux (Int.add d 1) (h2 :: rest) ]
+          
           | exists _, _ =>
               printer d (fun () => sprintf "Grinder: Exists on Hyp %I" hid);
               let h_body := fresh_hyp "Hex" in
@@ -1933,6 +1942,23 @@ Ltac2 crush1
           ]
         );
         printer d (fun () => "Crush: Sumbool Failed!");
+        rescue d rec_F
+
+    | [ |- _ + { _ } ] => 
+        printer d (fun () => "Crush: Sumor");
+        try (
+          solve [ 
+            printer d (fun () => "Crush: Sumor Left");
+            left; rec_F (Int.add d 1)
+          ]
+        );
+        try (
+          solve [ 
+            printer d (fun () => "Crush: Sumor Right");
+            right; rec_F (Int.add d 1) 
+          ]
+        );
+        printer d (fun () => "Crush: Sumor Failed!");
         rescue d rec_F
     
     | [ |- _ \/ _ ] => 
