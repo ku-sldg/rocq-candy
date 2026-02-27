@@ -11,7 +11,7 @@ Inductive eqsprop {A: SProp} (x: A): A -> Prop :=
   eqsprop_refl: eqsprop x x.
 Infix "=S" := eqsprop (at level 70): type_scope.
 
-Ltac2 Notation "box_simpl" :=
+Ltac2 box_simpl0 () :=
   repeat (
     match! goal with
     | [ h : Box SFalse |- _ ] => 
@@ -21,6 +21,8 @@ Ltac2 Notation "box_simpl" :=
     | [ h : SFalse |- _ ] => 
       let h := Control.hyp h in destruct $h
     end).
+
+Ltac2 Notation box_simpl := box_simpl0 ().
 
 Definition box_proj {A} :=
   fun (x : Box A) => match x with

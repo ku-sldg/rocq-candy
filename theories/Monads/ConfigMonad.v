@@ -52,8 +52,8 @@ Proof. ff. Qed.
 
 Lemma config_bind_right_id : forall Cfg A (m : Config Cfg A) cfg,
   config_bind m (fun a => done a) cfg = m cfg.
-Proof. ff u. Qed.
+Proof. ff. Qed.
 
 Lemma config_bind_assoc : forall Cfg A B C (m : Config Cfg A) (f : A -> Config Cfg B) (g : B -> Config Cfg C) cfg,
   config_bind (config_bind m f) g cfg = config_bind m (fun x => config_bind (f x) g) cfg.
-Proof. ff u. Qed.
+Proof. ff. Qed.
